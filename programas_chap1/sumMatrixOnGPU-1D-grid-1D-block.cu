@@ -40,12 +40,14 @@ void sumMatrixOnHost (float *A, float *B, float *C, const int nx, const int ny) 
   }
 }
 
-__global__ void sumMatrixOnGPU2D(float *MatA, float *MatB, float *MatC, int nx, int ny) {
+__global__ void sumMatrixOnGPU1D(float *MatA, float *MatB, float *MatC, int nx, int ny) {
   unsigned int ix = threadIdx.x + blockIdx.x * blockDim.x;
-  unsigned int iy = threadIdx.y + blockIdx.y * blockDim.y;
-  unsigned int idx = iy*nx + ix;
-  if (ix < nx && iy < ny)
-    MatC[idx] = MatA[idx] + MatB[idx];
+  if (ix < nx){
+    for (int iy = 0; iy < ny; iy++) {
+      unsigned int idx = iy*nx + ix;
+      MatC[idx] = MatA[idx] + MatB[idx];
+    }
+  }
 }
 
 void checkResult(float *hostRef, float *gpuRef, const int N) {
@@ -96,11 +98,9 @@ int main(int argc, char **argv) {
   memset(gpuRef, 0, nBytes);
 
   // add matrix at host side for result checks
-  //iStart = cpuSecond();
-  //sumMatrixOnHost (h_A, h_B, hostRef, nx,ny);
-  //iElaps = cpuSecond() - iStart;
-
-  //printf("sumMatrixOnHost elapsed %f sec\n", iElaps);
+  iStart = cpuSecond();
+  sumMatrixOnHost (h_A, h_B, hostRef, nx,ny);
+  iElaps = cpuSecond() - iStart;
 
   // malloc device global memory
   float *d_MatA, *d_MatB, *d_MatC;
@@ -113,23 +113,23 @@ int main(int argc, char **argv) {
   cudaMemcpy(d_MatB, h_B, nBytes, cudaMemcpyHostToDevice);
 
   // invoke kernel at host side
-  int dimx = 16;
-  int dimy = 16;
+  int dimx = 32;
+  int dimy = 1;
   dim3 block(dimx, dimy);
-  dim3 grid((nx+block.x-1)/block.x, (ny+block.y-1)/block.y);
+  dim3 grid((nx+block.x-1)/block.x, 1);
 
   iStart = cpuSecond();
-  sumMatrixOnGPU2D <<< grid, block >>>(d_MatA, d_MatB, d_MatC, nx, ny);
+  sumMatrixOnGPU1D <<< grid, block >>>(d_MatA, d_MatB, d_MatC, nx, ny);
   cudaDeviceSynchronize();
   iElaps = cpuSecond() - iStart;
 
-  printf("sumMatrixOnGPU2D <<<(%d,%d), (%d,%d)>>> elapsed %f sec\n", grid.x, grid.y, block.x, block.y, iElaps);
+  printf("sumMatrixOnGPU1D <<<(%d,%d), (%d,%d)>>> elapsed %f sec\n", grid.x, grid.y, block.x, block.y, iElaps);
 
   // copy kernel result back to host side
   cudaMemcpy(gpuRef, d_MatC, nBytes, cudaMemcpyDeviceToHost);
 
   // check device results
-  //checkResult(hostRef, gpuRef, nxy);
+  checkResult(hostRef, gpuRef, nxy);
 
   // free device global memory
   cudaFree(d_MatA);

@@ -1,0 +1,45 @@
+End of parallel programming -> basic introduction to GPU (Hello World, vector addition, matrix addition)
+
+GPU Course (bits to improve with *)
+----------
+
+Intro:
+GPGPU coding -> CUDA, OpenCL
+Hardware of the GPU
+SIMT model
+
+Execution model:
+Optimisation and profiling
+Warps and divergence
+Synchronisation
+Resource partitioning, latency hiding*
+Occupancy
+Optimisation case study: parallel reduction
+Dynamic parallelism
+
+Memory:
+Global
+Shared and constant
+
+Streams and concurrency:
+
+Instruction-level primitives:
+Instruction types
+Atomics
+Precision
+
+CUDA libraries:
+cuSPARSE
+cuBLAS
+cuFFT
+cuRAND
+cuDNN
+
+GPU coding in Python:
+Numba
+CuPy
+PyCUDA
+
+Other uses of the GPU:
+OpenGL visualisation (N-body example)
+Ray tracing (RTX cores)

@@ -1,0 +1,497 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="chrome=1" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+
+<title>Introducción</title>
+
+<!-- General and theme style sheets -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/reveal.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/theme/white.css" id="theme">
+<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/lib/css/zenburn.css"> -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/sunburst.min.css">
+
+
+        <style type="text/css">
+            .container{
+                        display: flex;
+                      }
+            .col{
+                      flex: 1;
+                }
+            .reveal section p {
+                      display: inline-block;
+                      font-size: 0.6em;
+                      line-height: 1.2em;
+                      vertical-align: top;
+                      text-align: left;
+            }
+            .reveal section li {
+                      font-size: 0.6em;
+            }
+            .reveal section img {
+                      border: none;
+            }
+            .reveal section figcaption {
+                      font-size: 0.4em;
+            }
+            div.mypars {text-align: left}
+        </style>
+
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+                <section><h2>Optimización y Programación GPU</h2>
+                <h4>Lenguaje: CUDA/C (GPUs de NVIDIA)</h4>
+                </section>
+
+                <section><h3>Información sobre el curso</h3>
+                <p><ul><li>Libros:</li>
+                        <ul><li><i>Learn CUDA Programming</i>, Han, Sharma</li>
+                        <li><i>Professional CUDA C Programming</i>, Cheng, Grossmann, McKercher</li>   
+                        <li><i>Parallel Programming: Concepts and Practice</i>, Schmidt, Gonzalez-Dominguez, Hundt, Schlarb</li>
+                        <li><i>Hands On GPU Programming with Python and CUDA</i>, Tuomanen</li></ul>
+                       <li>El lenguaje del curso es CUDA/C, pero veremos un poco sobre como interactuar con CUDA a través de Python.</li>
+                       <li>Los horarios de las clases son lunes 10.15-11.15, miercoles 10.15-11.15.</li>
+                       <li>Evaluaciones: 1 prueba (25%), 2 tareas (25% cada una), proyecto final (25%)</li></ul>
+                </section>
+
+                <section><h3>Programa</h3>
+                <p><ul><li>Introducción a CUDA</li>
+                       <ul><li style="color:red">Prueba (Evaluación 1)</li></ul>
+                       <li>El uso de la memoria del GPU</li>
+                       <li>Control de los threads</li>
+                       <ul><li style="color:red">Tarea (Evaluación 2)</li></ul>
+                       <li>Invocación de los <i>kernels</i></li>
+                       <li>Librerias de CUDA y Python</li>
+                       <ul><li style="color:red">Tarea (Evaluación 3)</li></ul>
+                       <li>Aplicaciones (Nbody, ray-tracing, OpenGL)</li>
+                       <ul><li style="color:red">Proyecto final (Deep Learning, Evaluación 4)</li></ul></ul>
+                </section>
+
+                <section><h3>Códigos</h3>
+                <p>Cada capítulo tiene una carpeta que contiene programas de ejemplo.</p>
+                </section>
+
+                <section><h3>Introducción a CUDA</h3>
+                </section>
+
+                <section><h4>Introducción</h4>
+                <figure>
+                <img src="introduccion_figuras/titan.jpg">
+                <figcaption>Fuente: nvidia.com</figcaption>
+                </figure>
+                </section>
+
+				<section><h4>Introducción</h4>
+                <p>Programación heterogénea</p>
+                <figure>
+                <img src="introduccion_figuras/hetero_arch.png">
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                </section>
+ 
+                <section><h4>GPU Hardware</h4>
+                <figure>
+                <img src="introduccion_figuras/modern_gpu_performance.png">
+                <figcaption>Fuente: <a href="https://developer.nvidia.com/"><i>NVIDIA Developer blog</i></a></figcaption>
+                </figure>
+                </section>
+
+				<section><h4><i>Compute capability</i></h4>
+                <p><a href="https://developer.nvidia.com/cuda-gpus">NVIDIA GPU Compute Capability</a></p>
+                </section>
+
+				<section><h4>CPU vs GPU</h4>
+                <figure>
+                <img src="introduccion_figuras/cpu_vs_gpu.png">
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                </section>         
+
+				<section><h4>Acelerando un código</h4>
+                <figure>
+                <img src="introduccion_figuras/use_of_gpu.png">
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                </section>
+
+				<section><h4><i>Thread</i> del GPU vs <i>thread</i> del CPU</h4>
+                <div class="container">
+                <div class="col">
+                <ul><li class="fragment" data-fragment-index=1><i>Threads</i> en el CPU son "pesados": <i>context switching</i> es costoso.</li>
+                    <li class="fragment" data-fragment-index=3>Los <i>cores</i> del CPU minimizan <i>latency</i> para uno o dos <i>threads</i>.</li>
+                    <li class="fragment" data-fragment-index=5>Un CPU con 4 procesadores de <i>quad-core</i> puede ejecutar 16 <i>threads</i> al mismo tiempo (32 si <i>hyper-threading</i> está habilitado).</li></ul>
+                </div>
+                <div class="col">
+                <ul><li class="fragment" data-fragment-index=2><i>Threads</i> en el GPU son "livianos": miles disponibles, <i>context switching</i> es rápido.</li>
+                    <li class="fragment" data-fragment-index=4>Los cores del GPU manejan muchos <i>threads</i> para maximizar <i>throughput</i>.</li>
+                    <li class="fragment" data-fragment-index=6>Los GPUs modernos permiten 1536 <i>threads</i> activos por multiprocesador. Ejemplo: GPU con 16 multiprocesadores, $> 24000$ <i>threads</i> activos al mismo tiempo.</li></ul>
+                </div>
+                </div>
+                </section>
+
+                <section><h4>Un poco de jerga</h4>
+                <ul><li><span style="color:red"><i>Thread</i></span>: secuencia de instrucciones, manejada por un <i>scheduler</i> (planificador, componente que reparte el tiempo disponible de un procesador entre los <i>threads</i>/procesos).</li>
+                    <li class="fragment"><span style="color:red"><i>Context switching</i></span>: cambio de contexto de un <i>thread</i>, basicamente parar la operación de un <i>thread</i> para permitir la operación de otro.</li>
+                    <li class="fragment"><span style="color:red"><i>Latency</i></span> (latencia): retraso entre la emisión de una instrucción y la transferencia de datos pedidos por la instrucción.</li>
+                    <li class="fragment"><span style="color:red"><i>Throughput</i></span>: la cantidad de datos que pasan a través de una red de comunicación en cierto unidad de tiempo (típicamente medido en GB/s)</li>
+                    <li class="fragment"><span style="color:red"><i>Bandwidth</i></span>: el máximo teórico del <i>throughput</i> para una red de comunicación.</ul>
+                </section>
+
+                <section><h4>NVCC Compiler</h4>
+                <figure>
+                <img src="introduccion_figuras/nvcc_compiler.png" height=300>
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                <ul><li>Código del <i>host</i>: corre en el CPU</li>
+                    <li>Código del <i>device</i>: corre en el GPU</li></ul>
+                </section>
+
+                <section><h4>¿Tengo un GPU?</h4>
+                <ul><li>En el <i>shell</i> de Linux: <code>nvidia-smi</code></li>
+                    <li>También se puede usar <code>lspci | grep NVIDIA</code></li></ul>
+                </section>
+
+                <section><h3>Primer programa de CUDA</h3>
+                </section>
+
+                <section><h4><i>¡Hola Mundo!</i> con CUDA</h4>
+                <p>Ejemplo 1: <code>hola_mundo.cu</code></p>
+                <p>Compilar con <code class="language-c">nvcc -arch=sm_50 hola_mundo.cu -o hola_mundo.x</code></p>
+                <p>Argumento para la opción <code>-arch</code> dependerá del GPU usado.</p>
+                </section>
+
+                <section><h3>Un programa más útil</h3>
+                </section>
+
+                <section><h4>Suma de vectores</h4>
+                <figure>
+                <img src="introduccion_figuras/vector_addition.png">
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Suma de vectores: <i>host</i></h4>
+                <p>Ejemplo 2a: <code>suma_vectores_host.c</code></p>
+                <p>Compilar con <code>gcc suma_vectores_host.c -o suma_vectores_host.x</code></p>
+                </section>
+
+                <section><h4>Suma de vectores: <i>device</i></h4>
+                <p>Ejemplo 2b: <code>suma_vectores_gpu.c</code></p>
+                <p><code>nvcc -arch=sm_50 suma_vectores_gpu.c -o suma_vectores_gpu.x</code></p>
+                </section>
+
+                <section><h4>Suma de vectores: <i>device</i></h4>
+                <figure>
+                <img src="introduccion_figuras/transfer.png">
+                <figcaption>Fuente: <i>Professional CUDA C Programming</i></figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Suma de vectores: <i>device</i></h4>
+                <div class="mypars">
+                <p><a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html#group__CUDART__MEMORY_1g37d37965bfb4803b6d4e59ff26856356"><code>cudaMalloc</code></a>: asignar memoria en el <i>device</i>.</p>
+                <br>
+                <p><a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html#group__CUDART__MEMORY_1gc263dbe6574220cc776b45438fc351e8"><code>cudaMemcpy</code></a>: copiar datos entre el <i>host</i> y el <i>device</i> (en ambas direcciones).</p>
+                <p>Funciones de manejo de memoria en la documentación del <a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html"><i>CUDA Runtime API</i></a></p>
+                </div>
+                </section>
+
+                <section><h3>Kernels</h3>
+                </section>
+
+                <section><h4>Utilizando el GPU</h4>
+                <p>Para realizar un trabajo en el GPU, hay que invocar un <i>kernel</i>.</p>
+                <p>Un <i>kernel</i> es simplemente una función que corre en el GPU, con ciertas restricciones.</p>
+                <p><pre><code class="language-c">__global__ void nombre_kernel(...){
+    // cuerpo de la función
+}</code></pre></p>
+                </section>
+
+                <section><h4>Utilizando el GPU</h4>
+                <p>Para invocar el kernel escribimos:</p>
+                <p><pre><code class="language-c">nombre_kernel&lt&lt&lt N, M &gt&gt&gt(...)</code></pre></p>
+                <p>Los valores de $N$ y $M$ controlan el número de <i>threads</i> que el <i>kernel</i> utiliza.</p>
+                </section>
+
+                <section><h4>Restricciones para los <i>kernels</i></h4>
+                <p><ul><li>Acceso a la memoria del <i>device</i> solamente.</li>
+                       <li>Tipo de retorno debe ser <code>void</code>.</li>
+                       <li>No se puede usar un número variable de argumentos.</li>
+                       <li>No se puede usar variables estáticas.</li>
+                       <li>No se puede usar punteros a funciones.</li>
+                       <li>Corren asincrónicamente.</li></ul></p>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <div class="container">
+                <div class="col">
+                <figure>
+                <img src="introduccion_figuras/cuda_indexing.png" height=300>
+                <figcaption>Fuente: Google</figcaption>
+                </figure>
+                </div>
+                <div class="col">
+                <ul><li>Todos los <i>threads</i> utilizados en un kernel constituyen un <i>grid</i> y comparten un espacio de memoria <b>global</b> del GPU.</li>
+                    <li>Un <i>grid</i> está compuesto de bloques de <i>threads</i>. Cada bloque tiene un espacio de memoria <b>compartida</b>.</li>
+                    <li>Los <i>threads</i> tienen coordenadas únicas: <code class="language-c">blockIdx</code> (indice del bloque dentro del <i>grid</i>) y <code class="language-c">threadIdx</code> (indice del <i>thread</i> dentro del bloque).</li></ul>
+                </div>
+                </div>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <div class="mypars">
+                <p>Se puede organizar los <i>threads</i> en 1D, 2D o 3D.</p>
+                <p class="fragment">Los coordenadas son un tipo vector <code class="language-c">uint3</code> (device) definido en CUDA:</p>
+                <p class="fragment"><code class="language-c">blockIdx.x</code>, <code class="language-c">blockIdx.y</code>, <code class="language-c">blockIdx.z</code><p>
+                <p class="fragment"><code class="language-c">threadIdx.x</code>, <code class="language-c">threadIdx.y</code>, <code class="language-c">threadIdx.z</code><p>
+                <p class="fragment">En el device se puede acceder a las dimensiones del <i>grid</i> y los bloques con:</p>
+                <p class="fragment"><code class="language-c">blockDim.x</code>, <code>blockDim.y</code>, <code>blockDim.z</code> (medidos en <i>threads</i>)</p>
+                <p class="fragment"><code>gridDim.x</code>, <code>gridDim.y</code>, <code>gridDim.z</code> (medidos en <i>bloques</i>)</p>
+                </div>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <p>Las dimensiones del <i>grid</i> y bloques están especificadas con el tipo <code class="language-c">dim3</code> (host):</p>
+                <p><pre><code class="language-c">dim3 bloques (bx,by,bz);
+dim3 grid (gx,gy,gz);</code></pre></p>
+                <p class="fragment">Si queremos una distribución bidimensional, ponemos $1$ para la dimensión $z$ (o ponemos solamente $2$ valores):</p>
+<p><pre class="fragment"><code class="language-c">dim3 bloques (bx,by);
+dim3 grid (gx,gy);</code></pre></p>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <p>En el momento de invocar el <i>kernel</i> hay que especificar el número de bloques y el número de <i>threads</i> en cada bloque:</p>
+                <p><pre><code class="language-c">nombre_kernel&lt&lt&lt N, M &gt&gt&gt(...)</code></pre></p>
+                <p>$N$ corresponde al número de <b>bloques</b> que queremos usar. $M$ corresponde al número de <i>threads</i> dentro de cada bloque.</p>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <p>Si estamos usando bloques de 2D o 3D, podemos usar los vectores que vimos antes, por ejemplo:</p>
+                <p><pre><code class="language-c">dim3 bloques (bx,by,bz);
+dim3 grid (gx,gy,gz);
+nombre_kernel&lt&lt&lt grid, bloques &gt&gt&gt(...)</code></pre></p>
+                </section>
+
+                <section><h4>Importante!</h4>
+                <div class="mypars">
+                <p>Hay un límite de $1024$ <i>threads</i> por bloque! No importa si usamos 1D, 2D o 3D, el límite es igual.</p>
+                <p class="fragment">Por lo tanto, en 1D podemos usar $1024$ <i>threads</i> en la dirección $x$.</p>
+                <p class="fragment">En 2D podemos usar $32$ <i>threads</i> en $x$ y el mismo número en $y$.</p>
+                <p class="fragment">En 3D podemos usar, por ejemplo, $16$ <i>threads</i> en $x$ y $y$, $4$ <i>threads</i> en $z$. ($16 \times 16 \times 4 = 1024$).</p>
+                <p class="fragment">Es muy fácil cometer el error de usar demasiados <i>threads</i> por bloque, y es muy difícil detectar el problema! (Veremos más sobre errores en un momento).</p>
+                </div>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i>: ejemplo</h4>
+                <p>Ejemplo 3: <code>mostrarIndices.cu</code></p>
+                <p>Compilar con <code class="language-c">nvcc -arch=sm_50 mostrarIndices.cu -o mostrarIndices.x</code></p>
+                </section>
+
+                <section><h4><i>Warps</i>, bloques, <i>grids</i></h4>
+                <div class="mypars">
+                <p>Los <i>threads</i> trabajan en grupos de $32$ nombrados <i>warps</i>.</p>
+                <p class="fragment">Dependiendo del número de <i>threads</i> por bloque, cada bloque tendrá multiples <i>warps</i>.</p>
+                <p class="fragment">Los <i>threads</i> en un <i>warp</i> están sincronizados implícitamente.</p>
+                <p class="fragment">Todos los <i>threads</i> en un bloque tienen acceso a un espacio de memoria compartida.</p>
+                <p class="fragment"><b>No hay comunicación</b> entre <i>threads</i> en distintos bloques.</p>
+                </div>
+                </section>
+
+                <section><h4>Diseño de los <i>kernels</i></h4>
+                <ul><li>Los <i>kernels</i> están basados en el model SPMD (<i>single program multiple data</i>)</li>
+                    <li>Un <i>kernel</i> corresponde a <b>código escalar</b> para un sólo <i>thread</i>.</li>
+                    <li>La invocación del <i>kernel</i> resulta en muchos <i>threads</i> realizando la misma operación como está definida en el <i>kernel</i>.</li></ul>
+                </section>
+
+                <section><h4>Variedades de funciones en CUDA</h4>
+                <ul><li><code>__global__</code>: ejecuta en el <i>device</i>, se puede llamar desde el <i>host</i> y el <i>device</i> (para <i>compute capability</i> mayor que $3$).</li>
+                    <li><code>__host__</code>: ejecuta en el <i>host</i>, se puede llamar desde el <i>host</i> (típicamente no es necesario especificar una función así)</li>
+                    <li><code>__device__</code>: ejecuta en el <i>device</i>, se puede llamar desde el <i>device</i>.</li>
+                    <li>Se puede compilar una función tanto para el <i>host</i> como para el <i>device</i> combinando <code>__host__</code> y <code>__device__</code>.</li></ul>
+                </section>
+
+                <section><h4>Suma de vectores (de nuevo)</h4>
+                <p><pre><code class="language-c">void suma_host(int *a, int *b, int *c) {
+	for(int idx=0;idx&ltN;idx++)
+		c[idx] = a[idx] + b[idx];
+}</code></pre></p>
+                </section>
+
+                <section><h4>Suma de vectores (de nuevo)</h4>
+                <p><pre><code class="language-c">__global__ void suma_device(int *a, int *b, int *c) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    c[idx] = a[idx] + b[idx];
+}</code></pre></p>
+                <p>No hay ciclo <code class="language-c">for</code>, las coordenadas de los <i>threads</i> reemplazan el índice del ciclo y <code class="language-c">N</code> está definida implícitamente cuando lanzamos el <i>kernel</i> con <code class="language-c">N</code> <i>threads</i>.</p>
+                <p>Por ejemplo, para 32 elementos, se puede invocar el <i>kernel</i> con: <code class="language-c">suma_device&lt&lt&lt1,32&gt&gt&gt(d_a, d_b, d_c);</code></p>
+                </section>
+
+                <section><h3>Errores</h3>
+                </section>
+
+                <section><h3>Manejando errores</h3>
+                <p>Siempre hay errores en un programa...</p>
+                <p>El problema con CUDA es que es un poco difícil detectar errores.</p>
+                <p>Todas las funciones del API de CUDA devuelven un número (un <i>enum</i>) que corresponde a algún tipo de error.</p>
+                <p>Se puede llamar las funciones así (un ejemplo):</p>
+                <p><pre><code>cudaError_t err = cudaMemcpy(...);
+cudaGetErrorString(err);</code></pre></p>
+                </section>
+
+                <section><h4>Manejando errores</h4>
+                <p>Otra forma (mejor) es usar un <i>macro</i>:</p>
+                <p><pre><code class="language-c">#define CHECK(llamada) \
+{                                  \
+  const cudaError_t err = call;  \
+  if (err != cudaSuccess)        \
+  {                                \
+    printf("Error: %s:%d, ", __FILE__, __LINE__);  \
+    printf("codigo de error:%d, mensaje: %s\n", err, cudaGetErrorString(err));  \
+    exit(1);  \
+  }           \
+}</code></pre></p>
+                <p>Referencia sobre el uso de <a href="https://gcc.gnu.org/onlinedocs/cpp/Macros.html"><i>macros</i> en C</a>.</p>
+                </section>
+
+                <section><h4>Manejando errores</h4>
+                <p>Es importante notar que la invocación de un <i>kernel</i> <b>no devuelve nada</b>!</p>
+                <p>Por este razón, si el <i>kernel</i> falla no aparece ningún mensaje de error.</p>
+                <p>Un ejemplo: invocación de un <i>kernel</i> con demasiados <i>threads</i>.</p>
+                <p><pre><code class="language-c">suma_device&lt&lt&lt1,2048&gt&gt&gt(d_a,d_b,d_c);</code></pre></p>
+                </section>
+
+                <section><h4>Manejando errores</h4>
+                <p>En este caso se puede usar la función <code>cudaGetLastError</code>.</p>
+                <p><pre><code class="language-c">suma_device&lt&lt&lt1,2048&gt&gt&gt(d_a,d_b,d_c);
+cudaError_t err = cudaGetLastError();
+if (err != cudaSuccess) printf("Error: %s\n",cudaGetErrorString(err));</code></pre></p>
+                </section>
+
+                <section><h4>Manejando errores</h4>
+                <p>Información sobre el manejo de errores de la <a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__ERROR.html">documentación del API</a>.</p>
+                </section>
+
+                <section><h3><i>Profiling</i></h3>
+                </section>
+
+                <section><h4><i>Profiling</i> (perfilaje)</h4>
+                <ul><li>Hay programas que se llaman <i>profilers</i> que dan información sobre la ejecución de un código (tiempo para cada función, utilización de memoria, etc.)</li>
+                    <li>Para CUDA hay:</li>
+                    <ul><li class="fragment"><code>nvprof</code>: apto para GPUs de <i>compute capability</i> $&lt 7$. Da información sobre utilización de recursos y tiempo de ejecución de funciones del API.</li>
+                        <li class="fragment"><code>ncu</code>: apto para GPUs de <i>compute capability</i> $\geq 7$. Solamente da información sobre la utilización de recursos del GPU, transferencias con la memoria, etc.</li>
+                        <li class="fragment"><code>nsys</code>: también para GPUs de CC $\geq 7$. Da información del tiempo de ejecución de las funciones.</li></ul>
+                    </ul>
+                </section>
+
+                <section><h4>nvprof</h4>
+                <figure>
+                <img src="introduccion_figuras/nvprof_example.png">
+                <figcaption>Ejemplo con nvprof</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>nvprof</h4>
+                <div class="mypars">
+                <p>Información sobre las opciones: <code>nvprof --help</code>.</p>
+                <p>Para información sobre el uso de recursos del GPU, se puede usar <b>métricas</b>. Usaremos varios durante el curso.</p>
+                <p class="fragment">Para ver las métricas disponibles usamos <code>nvprof --query-metrics</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>nvprof</h4>
+                <img src="introduccion_figuras/nvprof_metrics.png">
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NVVP</h4>
+                <div class="mypars">
+                <p>Se puede obtener de los <i>profilers</i> un archivo con la información para abrir en programas con GUI (<i>graphical user interface</i>)</p>
+                <p>Para nvprof: <code>nvprof --export-profile profile.nvvp --analysis-metrics ./nombre_programa</code></p>
+                <p>Después se puede abrir el archivo <code>profile.nvvp</code> con NVVP (NVIDIA Visual Profiler)</p>
+                </div>
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NVVP</h4>
+                <img src="introduccion_figuras/nvvp.png">
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NSight Compute</h4>
+                <div class="mypars">
+                <p>Para los GPUs de CC $\geq 7$ hay <span style="color:red"><i>NSight Compute</i></span> y <span style="color:red"><i>NSight Systems</i></span>.</p>
+                <p><code>ncu -o informacion ./nombre_programa.x</code> guarda un archivo <code>informacion.ncu-rep</code>.</p>
+                <p class="fragment">Se puede abrir este archivo en <i>NSight Compute</i> (<code>ncu-ui</code>)</p>
+                <p class="fragment">Para ver información en la pantalla: <code>ncu --metrics &ltnombre de la métrica&gt ./nombre_archivo.x</code> (una lista de métricas disponibles: <code>ncu --query-metrics</code>).</p>
+                </div>
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NSight Compute</h4>
+                <img src="introduccion_figuras/ncu_example.png">
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NSight Systems</h4>
+                <div class="mypars">
+                <p><code>nsys profile ./nombre_programa.x</code> guarda un archivo <code>report.qdrep</code>.</p>
+                <p>Se puede abrir este archivo en <i>NSight Systems</i> (<code>nsys-ui</code>)</p>
+                <p class="fragment"><code>nsys profile --stats=true ./nombre_programa.x</code> produce información en la pantalla similar a lo que produce <code>nvprof</code>.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Profilers</i> visuales: NSight Compute</h4>
+                <img src="introduccion_figuras/nsys_example.png">
+                </section>
+
+                <section><h4>nvprof/ncu</h4>
+                <div class="mypars">
+                <p><i>ncu</i> es más complejo que <i>nvprof</i> (los GPUs modernos también son más complejos!)</p>
+                <p>No hay una relación uno-a-uno de las métricas, pero hay una tabla en el sitio de NVIDIA que compara las métricas: <a href="https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html#nvprof-guide">https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html#nvprof-guide</a></p>
+                </div>
+                </section>
+
+                <section><h4>Acotado por el computo o la memoria?</h4>
+                <div class="mypars">
+                <p>Una de las razones más básicas por usar un <i>profiler</i> es encontrar si el programa está <span style="color:red">acotado por el computo</span> (<i>compute bound</i>) o <span style="color:red">acotado por la memoria</span> (<i>memory bound</i>).</p>
+                <p class="fragment"><i>Compute bound</i>: el rendimiento del programa está limitado por la rapidez de las operaciones aritméticas/matemáticas del GPU.</p>
+                <p class="fragment"><i>Memory bound</i>: el rendimiento del programa está limitado por la rapidez de la comunicación con la memoria del GPU.</p>
+                <p class="fragment">Casi <span style="color:blue">siempre</span> los programas de computación científica son <i>memory bound</i>.</p>
+                <p class="fragment">En el próximo capítulo veremos como podemos mejorar el uso de la memoria...</p>
+                </div>
+                </section>
+
+                <section><h4>Encontrar información sobre el GPU en el sistema</h4>
+                <p><ul><li>Con el mismo API de CUDA: <code>cudaGetDeviceProperties</code> (ejemplo 4: <code>simpleDeviceQuery.cu</code>).</li>
+                       <li>En el <i>shell</i> de Linux: <code>nvidia-smi</code></li>
+                       <li>También <code>lspci | grep NVIDIA</code></li></ul></p>
+                <p>Información en la documentación sobre <a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__DEVICE.html"><i>device management</i></a>.</p>
+                </section>
+
+			</div>
+		</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/js/reveal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.5.0/plugin/math/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/plugin/highlight/highlight.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        math: {
+        mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.8/MathJax.js',
+        config: 'TeX-AMS_HTML-full',
+        // pass other options into `MathJax.Hub.Config()`
+        TeX: { Macros: { RR: "{\\bf R}" } }
+        },
+        plugins: [ RevealHighlight ]
+      });
+    </script>
+
+	</body>
+</html>

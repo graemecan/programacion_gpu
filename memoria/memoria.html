@@ -1,0 +1,461 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="chrome=1" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+
+<title>Memoria</title>
+
+<!-- General and theme style sheets -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/reveal.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/theme/white.css" id="theme">
+<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/lib/css/zenburn.css"> -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/sunburst.min.css">
+
+
+        <style type="text/css">
+            .container{
+                        display: flex;
+                      }
+            .col{
+                      flex: 1;
+                }
+            .reveal section p {
+                      display: inline-block;
+                      font-size: 0.6em;
+                      line-height: 1.2em;
+                      vertical-align: top;
+                      text-align: left;
+            }
+            .reveal section li {
+                      font-size: 0.6em;
+            }
+            .reveal section td {
+                      font-size: 0.6em;
+            }
+            .reveal section img {
+                      border: none;
+            }
+            .reveal section figcaption {
+                      font-size: 0.4em;
+            }
+            div.mypars {text-align: left}
+        </style>
+
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+                <section><h2>Memoria del GPU</h2>
+                </section>
+
+				<section><h4>Jerarquía de memoria (host)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_1.png">
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                <p>No se puede programar los registros y <i>caches</i>.</p>
+                </section>
+
+                <section><h4>Jerarquía de memoria (GPU)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_2.png" height=400>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                <p>Se puede programar cualquier espacio de memoria que no sea <i>cache</i>.</p>
+                </section>
+
+                <section><h3>Memoria global</h3></section>
+
+                <section><h4>Memoria global</h4>
+                <p><ul><li>La memoria principal del GPU, <i>latency</i> alto, <i>bandwidth</i> bajo.</li>
+                       <li class="fragment">Se puede asignar memoria global en una forma dinamica con <code>cudaMalloc</code>.</li>
+                       <li class="fragment">Se puede asignar memoria global en una forma estática en el <i>device</i> con <code>__device__</code>.</li>
+                       
+                       <li class="fragment">El uso eficiente de la memoria global es muy importante para optimizar un código de CUDA.</li></ul></p>
+                </section>
+
+                <section><h4>Memoria global: declaración estática</h4>
+                <p>Ejemplo 1: <code>variableGlobal.cu</code></p>
+                <p>En este programa declaramos una variable global en la memoria global para el <i>device</i>.</p>
+                <p><pre><code class="language-c">#define N 10
+__device__ int devVar[N];
+
+int main(){
+    ...
+    int hostVar[N];
+    ...
+    cudaMemcpyToSymbol(devVar, &hostVar, N*sizeof(int));
+    ...
+}</code></pre></p>
+                </section>
+
+                <section><h4>Memoria global: declaración dinámica</h4>
+                <p>Ejemplo 2: <code>variableGlobalDin.cu</code></p>
+                <p>Mismo programa, pero con una declaración dinámica de la variable (ahora no tiene <i>global scope</i>).</p>
+                <p><pre><code class="language-c">#define N 10
+
+int main(){
+    ...
+    int* hostVar = (int *) malloc(N*sizeof(int));
+    int* devVar;
+    cudaMalloc((int**)&devVar, N*sizeof(int));
+    ...
+    cudaMemcpy(devVar, hostVar, N*sizeof(int), cudaMemcpyHostToDevice);
+    ...
+}</code></pre></p>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <p>La mejor forma de acceder a la memoria global es con acceso <b>alineado</b> y <b>contiguo</b></p>
+                <figure>
+                <img src="memoria_figuras/aligned_coalesced.png">
+                <figcaption>Alineado y contiguo (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                <figure>
+                <img src="memoria_figuras/non_coalesced.png">
+                <figcaption>No alineado ni contiguo (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <p>El tema de acceso alineado no es tan importante comparado con el acceso contiguo.</p>
+                <p>Ejemplo 3: <code>copiarFilas.cu</code> y <code>copiarColumnas.cu</code></p>
+                <figure>
+                <img src="memoria_figuras/row_column.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4 style="position: absolute; top: 0px; left: 100px">Memoria global: acceso eficiente</h4>
+                <div class="mypars">
+                <p style="position: absolute; top: 50px;">Métricas en <code>nvprof</code>: 
+                <ul style="position: absolute; top: 110px;"><li><code>gld_efficiency</code></li>
+                    <li><code>gst_efficiency</code></li></ul></p>
+                <p style="position: absolute; top: 170px;">En <code>ncu</code>:</p>
+                <ul style="position: absolute; top: 220px;"><li>smsp__sass_average_data_bytes_per_sector_mem_global_op_st.pct</li>
+                       <li>smsp__sass_average_data_bytes_per_sector_mem_global_op_ld.pct</li></ul>
+                <p style="position: absolute; top: 280px;">Eficiencia <i>load/store</i> para <code>copiarFilas</code> de $100\%$.</p>
+                <p style="position: absolute; top: 320px;">Para <code>copiarColumnas</code> la eficiencia de <i>load</i> es $25\%$, y para <i>store</i> es $12.5\%$.</p>
+                </div>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <div class="mypars">
+                <p>Operaciones de <i>load</i> pasan por un <i>cache</i>.</p>
+                <p class="fragment">Pero las operaciones de <i>store</i> no pasan por <i>cache</i> así que la eficiencia es menor para guardar valores.</p>
+                <p class="fragment"><span style="color:red">Conclusión importante</span>: el uso de la memoria global es mucho mas eficiente con acceso <span style="color:blue">contiguo</span>.</p>
+                </div>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <figure>
+                <img src="memoria_figuras/row_column.png">
+                <figcaption>Cargar por fila, guardar por columna (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <figure>
+                <img src="memoria_figuras/column_row.png">
+                <figcaption>Cargar por columna, guardar por fila (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <div class="mypars">
+                <p>Ejemplo 4: <code>transpuesta.cu</code></p>
+                <p class="fragment" data-index=1>La versión que carga por <b>columnas</b> es más rápido... ¿por qué?</p>
+                <p class="fragment" data-index=2>Las cargas de datos pasan por el <i>cache</i>, mientras la operación de guardar datos no utiliza ningún cache.</p>
+                <p class="fragment" data-index=2>Es mejor tener acceso contiguo para guardar ya que no podemos aprovechar del <i>cache</i> en ese caso.</p>
+                </div>
+                </section>
+
+                <section><h3>AoS vs. SoA</h3></section>
+
+                <section><h4>Opciones para estructuras de datos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_22.png">
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Opciones para estructuras de datos</h4>
+                <p>Ejemplo 5: <code>aos.cu</code> y <code>soa.cu</code>.</p>
+                <p>Normalmente se prefiere SoA en programación paralela (acceso contiguo en el GPU)</p>
+                </section>
+
+                <section><h4>Alineamiento de estructuras</h4>
+                <div class="mypars">
+                <p>Parentesis importante (relevante para la programación en general):</p>
+                <p>La organización de los elementos en una estructura tiene consecuencia para el uso de la memoria!</p>
+                <p>Ejemplo 5a: <code>alineamiento_datos.c</code></p>
+                </div>
+                </section>
+
+                <section><h3>Memoria compartida</h3></section>
+
+                <section><h4>Memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_2.png" height=400>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Memoria compartida</h4>
+                <p><ul><li>Variables declaradas en el <i>kernel</i> con <code>__shared__</code> están guardadas en memoria compartida.</li>
+                       <li class="fragment">Esta memoria está <i>on-chip</i>: bandwidth alto, latency bajo.</li>
+                       <li class="fragment">Cada SM tiene una cantidad limitada de memoria compartida, dividida entre bloques de <i>threads</i>. Si usamos demasiado memoria compartida el número de <i>warps</i> activos está reducido.</li>
+                       <li class="fragment">Memoria compartida permite comunicación entre los <i>threads</i> (dentro de un bloque).</li></ul></p>
+                </section>
+
+                <section><h4>Memoria compartida - declaración estática</h4>
+                <p><pre><code class="language-c">__shared__ float tile[ny][nx];</code></pre></p>
+                <p>Declarada dentro de un <i>kernel</i>: <i>scope</i> local; declarada fuera de cualquier <i>kernel</i>: <i>scope</i> global.</p>
+                <p>Ya que la memoria compartida está asocidada a un bloque de <i>threads</i>, típicamente tenemos <code>ny, nx</code> igual a las dimensiones de un bloque.</p>
+                </section>
+
+                <section><h4>Memoria compartida - declaración dinámica</h4>
+                <p><pre><code class="language-c">extern __shared__ int tile[];</code></pre></p>
+                <p>Tiene que ser declarada dentro de un <i>kernel</i>.</p>
+                <p>El tamaño del array está definido en el momento de invocar el <i>kernel</i> con el tercer argumento al configuración del <i>kernel</i>.</p>
+                <p><pre><code class="language-c">kernel&lt&lt&ltgrid, block, N * sizeof(int)&gt&gt&gt(...)</code></pre></p>
+                <p>Para declaración dinámica, se puede declarar arrays unidimensional solamente.</p>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <p>Volvemos al ejemplo de la transpuesta de una matriz, pero ahora vamos a usar memoria compartida.</p>
+                <figure>
+                <img src="memoria_figuras/figure_5_15.png">
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4 style="position: absolute; top: 0px; left: 100px">Transpuesta: memoria compartida</h4>
+                <p style="position: absolute; top: 50px; left: 70px">Ejemplo 6: <code>transpuesta_compartida.cu</code>.</p>
+                <p style="position: absolute; top: 100px; left: 70px">Hay tres kernels:</p>
+                <ol style="position: absolute; top: 170px; left: 80px"><li>El kernel para la transpuesta con memoria global.</li>
+                    <li>Un kernel que utiliza memoria compartida estática.</li>
+                    <li>Otro que utiliza memoria compartida dinámica.</li></ul>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <p>Consideramos un ejemplo: matriz de $4 \times 4$ elementos, usamos bloques de $2 \times 2$ (memoria compartida del mismo tamaño).</p>
+                <p><code>blockDim.x, blockDim.y</code> son iguales a $2$, hay $2$ bloques en cada dimensión.</p>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig1.png" height=300>
+                <figcaption>Indices globales de los <i>threads</i>.</figcaption>
+                </figure>
+                <pre><code class="language-c">ix = blockDim.x * blockIdx.x + threadIdx.x
+iy = blockDim.y * blockIdx.y + threadIdx.y</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig2.png" height=300>
+                <figcaption>Indice lineal de los <i>threads</i>.</figcaption>
+                </figure>
+                <pre><code class="language-c">ti = iy * N + ix</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig3.png" height=300>
+                <figcaption>Indices globales después de la "transpuesta de bloques".</figcaption>
+                </figure>
+                <pre><code class="language-c">ixt = blockDim.y * blockIdx.y + threadIdx.x
+iyt = blockDim.x * blockIdx.x + threadIdx.y</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig4.png" height=300>
+                <figcaption>Indice lineal después de la "transpuesta de bloques".</figcaption>
+                </figure>
+                <pre><code class="language-c">to = iyt * N + ixt;</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig5.png" height=300>
+                <figcaption>Elementos guardados en la matriz de salida después de cargar de la memoria compartida.</figcaption>
+                </figure>
+                <pre><code class="language-c">tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_2.png" height=300>
+                <figcaption>Acceso ideal (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_3.png" height=300>
+                <figcaption>Acceso desordenado, pero no problematicio (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_4.png" height=300>
+                <figcaption>Potencialmente problematico... (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Organizaciíon de la memoria compartida (bancos)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_5.png" height=300>
+                <figcaption>Bancos de ancho 4-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Organizaciíon de la memoria compartida (bancos)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_6.png" height=300>
+                <figcaption>Bancos de ancho 8-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_7.png" height=300>
+                <figcaption>Todo bien acá (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_8.png" height=300>
+                <figcaption>Todo bien acá también, gracias al ancho de 8-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_9.png" height=300>
+                <figcaption>Conflicto! (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_10.png" height=300>
+                <figcaption>Conflicto! (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Solución: <i>padding</i></h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_11.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta: conflictos de bancos</h4>
+                <pre><code class="language-c">__shared__ float tile[BDIM][BDIM];
+...
+tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                <p>Acceso por columna corresponde a acceso al mismo banco.</p>
+                </section>
+
+                <section><h4>Transpuesta: conflictos de bancos</h4>
+                <pre><code class="language-c">__shared__ float tile[BDIM][BDIM+1];
+...
+tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                <p>Ahora los elementos de una columna van a bancos distintos.</p>
+                </section>
+
+                <section><h3>Memoria constante</h3></section>
+
+                <section><h4>Memoria constante</h4>
+                <p><ul><li>Reside en memoria del <i>device</i>, cada SM tiene un <i>cache</i> asignada a la memoria constante.</li>
+                       <li class="fragment">Se declara una variable que se guarda en esa memoria con <code>__constant__</code>.</li>
+                       <li class="fragment">Tienen que tener <i>global scope</i>, fuera de cualquier <i>kernel</i>. 64KB está disponible.</li>
+                       <li class="fragment">Útil para constantes matemáticas aplicadas por todos los <i>threads</i>.</li>
+                       <li class="fragment"><i>Kernels</i> solamente pueden <b>leer</b> de la memoria constante, así que hay que inicializarla desde el <i>host</i>:</li></ul></p>
+                <p class="fragment"><code>cudaError_t cudaMemcpyToSymbol(const void* simbolo, const void* src, size_t count);</code></p>
+                </section>
+
+                <section><h4>Memoria constante</h4>
+                <p>Ejemplo 7: <code>memoria_constante.cu</code></p>
+                </section>
+
+                <section><h4>Memoria unificada</h4></section>
+
+                <section><h4>Transferencias de memoria</h4>
+                <p><img src="memoria_figuras/figure_4_3.png"></p>
+                <p>Ejemplo para Fermi C2050 GPU (Fuente: Professional CUDA C Programming)</p>
+                </section>
+
+                <section><h4>Memoria <i>pinned</i></h4>
+                <p><ul><li>Memoria en el <i>host</i> es, por defecto, <i>pageable</i>.</li>
+                       <li class="fragment">La memoria está organizada en páginas que el sistema operativo puede mover a la <b>memoria virtual</b> (memoria en el disco duro).</li>
+                       <li class="fragment">Cuando el sistema requiere datos que están en el disco duro, ocurre un <i>page fault</i>, y los datos están copiados del disco al RAM.</li>
+                       <li class="fragment">El GPU no tiene control sobre el movimiento de las páginas de memoria.</li>
+                       <li class="fragment">Transferencie de datos del <i>host</i> al <i>device</i> involucra la asignación de memoria <i>page-locked</i> o <i>pinned</i> en el <i>host</i>.</li>
+                       <li class="fragment">Los datos se transfieren de <i>pageable</i> a <i>pinned</i> y después al <i>device</i>.</li></ul></p>
+                </section>
+
+                <section><h4>Pinned memory</h4>
+                <p><img src="memoria_figuras/figure_4_4.png"></p>
+                </section>
+
+                <section><h4>Asignación de memoria <i>pinned</i></h4>
+                <p><ul><li><code>cudaError_t cudaMallocHost(void **devPtr, size_t count);</code></li>
+                       <li><code>cudaError_t cudaFreeHost(void *ptr);</code></li></ul></p>
+                <p>El uso de demasiado memoria <i>pinned</i> puede afectar el rendimiento del sistema entero, ya que reduce la cantidad de memoria <i>pageable</i> disponible.</p>
+                <p>Ejemplo 8: <code>pinnedMemoryTransfer.cu</code></p>
+                </section>
+
+                <section><h4>Memoria unificada</h4>
+                <p><ul><li>Desde CUDA 6.0, <i>Unified Memory</i> permite el acceso a la memoria usando un solo espacio de direcciones tanto para el GPU como para el CPU.</li>
+                       <li class="fragment">UM se encarga de la transferencia de datos automáticamente.</i>
+                       <li class="fragment">Basado en <i>Unified Virtual Addressing</i> (introducido en CUDA 4.0) que unificó el espacio de direcciones en memoria.</li></ul></p>
+                <p class="fragment">Declaración estática en memoria unificada (a veces llamada <i>managed</i>): <code>__device__ __managed__ int y;</code></p>
+                <p class="fragment">Asignación dinámica de memoria unificada: <code>cudaError_t cudaMallocManaged(void **devPtr, size_t size, unsigned int flags=0);</code></p> 
+                <p class="fragment">El puntero <code>devPtr</code> está válido tanto en el <i>device</i> como en el <i>host</i>.</p>
+                </section>
+
+                <section><h4>Memoria unificada</h4>
+                <p>Ejemplo 9: <code>memoria_unificada.cu</code></p>
+                </section>
+
+			</div>
+		</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/js/reveal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.5.0/plugin/math/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/plugin/highlight/highlight.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        math: {
+        mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.8/MathJax.js',
+        config: 'TeX-AMS_HTML-full',
+        // pass other options into `MathJax.Hub.Config()`
+        TeX: { Macros: { RR: "{\\bf R}" } }
+        },
+        plugins: [ RevealHighlight ]
+      });
+    </script>
+
+	</body>
+</html>

@@ -1,0 +1,1026 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="chrome=1" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+
+<title>Threads</title>
+
+<!-- General and theme style sheets -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/reveal.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/theme/white.css" id="theme">
+<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/lib/css/zenburn.css"> -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/sunburst.min.css">
+
+
+        <style type="text/css">
+            .container{
+                        display: flex;
+                      }
+            .col{
+                      flex: 1;
+                }
+            .reveal section p {
+                      display: inline-block;
+                      font-size: 0.6em;
+                      line-height: 1.2em;
+                      vertical-align: top;
+                      text-align: left;
+            }
+            .reveal section li {
+                      font-size: 0.6em;
+            }
+            .reveal section td {
+                      font-size: 0.6em;
+            }
+            .reveal section img {
+                      border: none;
+            }
+            .reveal section figcaption {
+                      font-size: 0.4em;
+            }
+            div.mypars {text-align: left}
+        </style>
+
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+                <section><h2>Programación de <i>threads</i>, optimización</h2>
+                </section>
+
+                <section><h4>Organización de los <i>threads</i></h4>
+                <div class="mypars">
+                <p class="fragment"><span style="color:blue"><i>Grid</i></span>: compuesto de bloques de <i>threads</i>.</p>
+                <p class="fragment"><span style="color:red"><i>Block</i></span>: compuesto de <i>warps</i> de <i>threads</i> (máximo de $1024$ threads en total).</p>
+                <p class="fragment"><span style="color:green"><i>Warp</i></span>: compuesto de $32$ <i>threads</i>.</p>
+                </div>
+                </section>
+
+                <section><h4>Sincronización de los <i>threads</i></h4>
+                <div class="mypars">
+                <p class="fragment"><span style="color:blue"><i>Grid</i></span>: no hay sincronización de bloques.</p>
+                <p class="fragment"><span style="color:red"><i>Block</i></span>: se puede usar sincronización con <code>__syncthreads()</code>.</p>
+                <p class="fragment"><span style="color:green"><i>Warp</i></span>: sincronización implícita.</p>
+                </div>
+                </section>
+
+                <section><h4>Modelo de CUDA</h4>
+                <div class="mypars">
+                <p>SIMT: <i>single instruction, multiple threads</i>
+                <p class="fragment">Modelo híbrido entre SIMD (single instruction, multiple data) y SMT (simultaneous multithreading).</p>
+                <p class="fragment"><span style="color:blue">Programación Paralela:</span> 
+                <ul><li class="fragment">SIMD = vectorización (AVX)</li>
+                    <li class="fragment">SMT = OpenMP</li></ul>
+                </div>
+                </section>
+
+                <section><h4>SIMT vs. SIMD vs. SMT</h4>
+                <div class="mypars">
+                <p>SIMD: procesamiento de elementos de vectores cortos en paralelo.</p>
+                <p class="fragment">SMT: instrucciones de varios <i>threads</i> corren en paralelo.</p><br>
+                <p class="fragment">SIMT:</p>
+                <p><ol><li class="fragment">Instrucción simple, multiples registros</li>
+                    <li class="fragment">Instrucción simple, multiples direcciones de memoria</li>
+                    <li class="fragment">Instrucción simple, multiples flujos de ejecución</li></ol></p>
+                </div>
+                </section>
+
+                <section><h4>SIMT</h4>
+                <div class="mypars">
+                <p>Instrucción simple, multiples registros:</p>
+                <ul><li class="fragment">Escribimos la instrucción de un sólo <i>thread</i> (<i>scalar spelling</i>)</li>
+                    <li class="fragment">Cada <i>thread</i> tiene su propio registro</li>
+                    <li class="fragment">Hay repetición de variables entre registros (más redundante pero más flexible)</li></ul>
+                </div>
+                </section>
+
+                <section><h4>SIMT</h4>
+                <div class="mypars">
+                <p>Instrucción simple, multiples direcciones de memoria</p>
+                <ul><li class="fragment">Los <i>threads</i> pueden acceder a cualquier parte de la memoria.</li>
+                    <li class="fragment">Para SIMD (vectorización) no es así, pero si para SMT.</li>
+                    <li class="fragment">De todas maneras, es mejor mantener el acceso contiguo!</li></ul>
+                </div>
+                </section>
+
+                <section><h4>SIMT</h4>
+                <div class="mypars">
+                <p>Instrucción simple, multiples flujos de ejecución</p>
+                <ul><li class="fragment">Es posible poner <code>if/else</code> en las instrucciones para los <i>threads</i> (<i>branching</i>).</li>
+                    <li class="fragment">Implica divergencia en la ejecución de los <i>threads</i>.</li>
+                    <li class="fragment">Generalmente no es una buena idea... se llama <i>warp divergence</i>.</li></ul>
+                </div>
+                </section>
+
+                <section><h4>SIMT vs. SIMD vs. SMT</h4>
+                <div class="mypars">
+                <p>En términos de flexibilidad: SIMD &lt SIMT &lt SMT</p><br>
+                <p class="fragment">Costos de SIMT:</p>
+                <ul><li class="fragment">Si la ocupación (<i>occupancy</i>) de los <i>threads</i> es baja, el rendimiento es bajo.</li>
+                    <li class="fragment">El <i>warp divergence</i> afecta el rendimiento.</li>
+                    <li class="fragment">Antes de CUDA 9 se podía sincronizar <i>threads</i> solamente dentro de un bloque con <code>__syncthreads()</code></li></ul>
+                <p class="fragment">CUDA 9:</p>
+                <ul><li class="fragment"><i>warp primitives</i> (más control de los <i>threads</i> en un <i>warp</i>.</li>
+                    <li class="fragment"><i>Cooperative groups</i> (grupos cooperativos) ofrecen más posibilidades de sincronización, hasta el nivel del grid entero (con restricciones).</li></ul>
+                </div>
+                </section>
+
+				<section><h4>Diseño del GPU</h4>
+                <div class="mypars">
+                <p><i>Throughput</i> alto, <i>latency</i> alto</p><br>
+                <p class="fragment">Los CPUs optimizan <i><span style="color:red">latency</span></i> (tiempo de demora)</p>
+                <p class="fragment">Los GPUs optimizan <i><span style="color:blue">throughput</span></i> (cantidad de datos procesados)</p>
+                <p class="fragment">Cada <i>core</i> de un GPU es mucho más lento que un <i>core</i> de un CPU...</p>
+                <p class="fragment">...pero hay miles de <i>cores</i>, así que un GPU puede usar miles de <i>threads</i> y además puede intercambiar entre los <i>threads</i> (<i>context switching</i>) mucho más rápidamente que un CPU.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Threads, warps, blocks</i></h4>
+                <div class="mypars">
+                <p>Ejemplo 1: <code>threads_warps_blocks.cu</code></p>
+                <p class="fragment">Operaciones asincrónicas (bloques, warps) imprimen a la pantalla en cualquier orden.</p>
+                <p class="fragment">Operaciones sincrónicas (threads en un warp) imprimen en orden.</p>
+                <p class="fragment">Los threads en un warp operan en <i>lock-step</i>: todos hacen lo mismo en el mismo momento.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i></h4>
+                <div class="mypars">
+                <p>Occupancy = <i>warps</i> activos/max <i>warps</i> activos</p>
+                <p class="fragment">Los recursos para los <i>threads</i> están asignados por bloque.</p>
+                <p class="fragment">Utilizando muchos recursos por <i>thread</i> puede limitar <i>occupancy</i>.</p>
+                <p class="fragment">El <i>occupancy</i> puede ser limitado por:</p>
+                <ul><li class="fragment">Uso de registros</li>
+                    <li class="fragment">Uso de memoria compartida</li>
+                    <li class="fragment">Tamaño de los bloques</li></ul>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: registros</h4>
+                <div class="mypars">
+                <p>Se puede obtener información sobre el uso de registros del compilador: <code>--resource-usage</code>.</p>
+                <p>Consideremos la arquitectura de Fermi: $32$K registros por SM, $48$ <i>warps</i> activos por SM ($1536$ threads)</p>
+                <ul><li>Ejemplo A: kernel que usa $21$ registros por thread</li>
+                    <li>Threads activos = $32$K/$21 = 1560$ threads.</li>
+                    <li>$1560 > 1536$, occupancy $= 1$.</li></ul>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: registros</h4>
+                <div class="mypars">
+                <ul><li>Ejemplo B: kernel que usa $64$ registros por thread</li>
+                    <li>Threads activos = $32$K/$64 = 512$ threads.</li>
+                    <li>$512/1536 = 0.33$</li></ul>
+                <p>El uso de los registros es algo que se puede controlar con <code>--maxrregcount</code>.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: memoria compartida</h4>
+                <div class="mypars">
+                <p>Fermi tiene $16$KB o $48$KB de memoria compartida.</p>
+                <ul><li>Ejemplo A: kernel que usa $48$KB memoria compartida</li>
+                    <li>Kernel usa $32$B memoria compartida por thread.</li>
+                    <li>$48$KB/$32$B = 1536 threads, occupancy = 1.</li></ul>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: memoria compartida</h4>
+                <div class="mypars">
+                <ul><li>Ejemplo B: kernel que usa $16$KB memoria compartida</li>
+                    <li>Kernel usa $32$B memoria compartida por thread.</li>
+                    <li>$16$KB/$32$B = 512 threads, occupancy = 0.33.</li></ul>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: tamaño del bloque</h4>
+                <div class="mypars">
+                <ul><li>Cada SM (en Fermi) puede tener $8$ bloques activos.</li>
+                    <li>Usar bloques pequeños limitará el número total de threads.</li></ul>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i>: tamaño del bloque</h4>
+                <div class="mypars">
+                <table><tr><td>Tamaño bloque</td><td>Threads activos</td><td>Occupancy</td></tr>
+                       <tr><td>32           </td><td>256            </td><td>0.166    </td></tr>
+                       <tr><td>64           </td><td>512            </td><td>0.333    </td></tr>
+                       <tr><td>128          </td><td>1024           </td><td>0.666    </td></tr>
+                       <tr><td>192          </td><td>1536           </td><td>1        </td></tr>
+                       <tr><td>256          </td><td>2048 (1536)    </td><td>1        </td></tr>
+                </table>
+                </div>
+                </section>
+
+                <section><h4>Cuando optimizar el <i>occupancy</i></h4>
+                <div class="mypars">
+                <p>Si el kernel está limitado por el <i>bandwidth</i> (<i>bandwidth bound</i>).</p>
+                <p>Si el <i>bandwidth</i> logrado es mucho menor que el peak.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i> ejemplo</h4>
+                <div class="mypars">
+                <p>Ejemplo 2: <code>matriz_mult.cu</code> (multiplicación de matrices)</p>
+                <p>Compilamos con <code>--resource-usage</code></p>
+                <p>Se puede medir el <i>occupancy</i> con el profiler:</p>
+                <p><code>nvprof</code>: <code>achieved_occupancy</code></p>
+                <p><code>ncu</code>: <code>sm__warps_active.avg.pct_of_peak_sustained_active</code></p>
+                </div>
+                </section>
+
+                <section><h4><i>Occupancy</i></h4>
+                <div class="mypars">
+                <p>Para controlar <i>occupancy</i>:</p>
+                <ul><li><code>__launch_bound__(max_threads_por_bloque, &ltmin_bloques_por_sn&gt)</code> en la definición del kernel (segundo argumento es opcional)</li>
+                    <li><code>--maxrregcount</code> en el compilador para limitar el número de registros ocupados</li></ul>
+                <p>Si el compilador no puede satisfacer las restricciones, usará memoria fuera de los registros (<i>register spill</i>).</p>
+                </div>
+                </section>
+
+                <section><h3>Reducción: una aplicación de la optimización</h3></section>
+
+                <section><h4>Reducción paralela</h4>
+                <div class="mypars">
+                <p>Vimos sobre el concepto de <b>reducción</b> en el curso de programación paralela.</p>
+                <p>Significa obtener un sólo valor de un conjunto de datos, en forma paralela.</p>
+                <p>Un ejemplo sería la suma total de todos los elementos en un array.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela</h4>
+                <figure>
+                <img src="threads_figuras/parallel_reduction.jpeg" width=600>
+                <figcaption>Fuente: www.eximia.co</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Reducción paralela</h4>
+                <figure>
+                <img src="threads_figuras/par_red.png" height=500>
+                <figcaption>Fuente: sodocumentation.net</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Reducción paralela: memoria global</h4>
+                <div class="mypars">
+                <p>Ejemplo 3: <code>reduccion_global.cu</code></p>
+                <p>Kernel invocado dentro de un ciclo</p>
+                <p>El <i>stride</i> cambia en cada iteración por un factor de 2.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: memoria global</h4>
+                <figure>
+                <img src="threads_figuras/reduction_global.png">
+                <figcaption><code>stride = 8</code> no puede pasar porque el ciclo va hasta <code>stride &lt N</code></figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Reducción paralela: memoria global</h4>
+                <div class="mypars">
+                <p><pre><code class="language-c">__global__ void reduccion_memoria_global(float *data, int stride, int N)
+{
+    int idx_x = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx_x + stride &lt N) {
+        data_out[idx_x] += data_in[idx_x + stride];
+    }
+}
+...
+int main(){
+    ...
+    for (int stride = 1; stride &lt N; stride *= 2) {
+        global_reduction_kernel&lt&lt&ltn_bloques, n_threads&gt&gt&gt(d_array, stride, N);
+    }
+    ...
+}</code></pre></p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: memoria global</h4>
+                <p>Hay un problema con el kernel... ¿cuál es?</p>
+                <p class="fragment">...todos los threads calculan algo, pero los resultados no son necesarios!</p>
+                </section>
+
+                <section><h4>Reducción paralela: menos threads trabajando</h4>
+                <p>Ejemplo 4: <code>reduccion_global2.cu</code></p>
+                <figure>
+                <img src="threads_figuras/reduction_global_strided.png" height=400>
+                </figure>
+                </section>
+
+                <section><h4>Divergencia de <i>warps</i></h4>
+                <div class="mypars">
+                <p>Este método también sufre de un problema...</p>
+                <p class="fragment">En CUDA (gracias a SIMT) se puede tener algo como lo siguiente:</p>
+                <p><pre class="fragment"><code>if (threadIdx.x % 2 == 0) {
+// rama 1
+} else {
+// rama 2
+}</code></pre></p>
+                <p class="fragment">En este caso los <i>threads</i> con índice par ejecutan <code>rama 1</code> y los threads con índice impar ejecutan <code>rama 2</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>Divergencia de <i>warps</i></h4>
+                <div class="mypars">
+                <p>Todos los <i>threads</i> dentro de un <i>warp</i> ejecutan la misma instrucción en el mismo momento.</p>
+                <p class="fragment">Entonces, ¿cómo podemos tener separación (divergencia) de los <i>threads</i> dentro de un <i>warp</i>?</p>
+                <p class="fragment">En el ejemplo (y también en el código de la reducción) los <i>threads</i> de índice par ejecutan sus instrucciones, mientras que los otros <i>threads</i> tienen que <b>esperar</b>.</p>
+                <p class="fragment">Divergencia de <i>warp</i> (<i>warp divergence</i>) implica menos eficiencia de un <i>kernel</i>.</p>
+                </div>
+                </section>
+
+                <section><h4>Divergencia de <i>warps</i></h4>
+                <figure>
+                <img src="threads_figuras/warp_divergence.png">
+                </figure>
+                </section>
+
+                <section><h4>Divergencia de <i>warps</i></h4>
+                <p>En los profilers se puede medir el nivel de <i>warp divergence</i>.</p>
+                <p><code>nvprof</code>: <code>branch_efficiency</code></p>
+                <p><code>ncu</code>: <code>smsp__sass_average_branch_targets_threads_uniform.pct</code></p>
+                </section>
+
+                <section><h4>Reducción paralela: sin <i>warp divergence</i></h4>
+                <p>Ejemplo 5: <code>reduccion_global3.cu</code></p>
+                <figure>
+                <img src="threads_figuras/reduction_global_noWD.png" height=400>
+                <figcaption>Puede ser problematico usar el índice global de los <i>threads</i> para un array muy grande...</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Reducción paralela: usando bloques</h4>
+                <p>Ejemplo 6: <code>reduccion_global4.cu</code></p>
+                <figure>
+                <img src="threads_figuras/block_reduction.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Reducción paralela: acceso contiguo</h4>
+                <p>Ejemplo 7: <code>reduccion_global5.cu</code></p>
+                <figure>
+                <img src="threads_figuras/interleaved.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Optimización: <i>loop unrolling</i></h4>
+                <div class="mypars">
+                <p>Ahora vamos a aplicar una técnica de optimización que aplica también a programación secuencial.</p>
+                <p class="fragment">Se llama <i>loop unrolling</i>.</p>
+                <p class="fragment">Primero, veremos un ejemplo en programación secuencial.</p>
+                </div>
+                </section>
+
+                <section><h4>Optimización: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">for (int i = 0; i &lt N; i++){
+    a[i] = b[i] + c[i];
+}</code></pre></p>
+                <p><pre class="fragment"><code class="language-c">for (int i = 0; i &lt N; i+=2){
+    a[i] = b[i] + c[i];
+    a[i+1] = b[i+1] + c[i+1];
+}</code></pre></p>
+                </section>
+
+                <section><h4>Optimización: <i>loop unrolling</i></h4>
+                <div class="mypars">
+                <p>El segundo ciclo tiene menos iteraciones.</p>
+                <p class="fragment">Por lo tanto hay menos <i>overhead</i> de verificar si el ciclo puede terminar o no.</p>
+                <p class="fragment">También hay oportunidades de optimizar el acceso a la memoria (uso de <i>cache</i> etc.)</p>
+                <p class="fragment">Para <i>loops</i> así los compiladores modernos típicamente aplican <i>loop unrolling</i> automaticamente.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <div class="mypars">
+                <p>¿Cómo podemos aplicar <i>loop unrolling</i> en el <i>kernel</i> de reducción paralela?</p>
+                <p>Aplicamos una suma entre bloques antes de comenzar con el ciclo de la reducción dentro de los bloques.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <p>Ejemplo 8: <code>reducción_global6.cu</code></p>
+                <figure>
+                <img src="threads_figuras/reduction_global_unrolled.png">
+                </figure>
+                </section>
+
+                <section><h4>Optimización: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">for (int i = 0; i &lt N; i+=2){
+    a[i] = b[i] + c[i];
+    a[i+1] = b[i+1] + c[i+1];
+}</code></pre></p>
+                <p>Este corresponde a <i>loop unrolling</i> con un factor de $2$.</p>
+                </section>
+
+                <section><h4>Optimización: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">for (int i = 0; i &lt N; i+=4){
+    a[i] = b[i] + c[i];
+    a[i+1] = b[i+1] + c[i+1];
+    a[i+2] = b[i+2] + c[i+2];
+    a[i+3] = b[i+3] + c[i+3];
+}</code></pre></p>
+                <p>Este corresponde a <i>loop unrolling</i> con un factor de $4$.</p>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">if (idx + blockDim.x &lt N) data[idx] += data[idx + blockDim.x];</code></pre></p>
+                <p>Con esa línea sumamos valores en $2$ bloques (<i>loop unrolling</i> $\times 2$)</p>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">if (idx + 3 * blockDim.x &lt N)
+    {
+        float a1 = data[idx];
+        float a2 = data[idx + blockDim.x];
+        float a3 = data[idx + 2 * blockDim.x];
+        float a4 = data[idx + 3 * blockDim.x];
+        data[idx] = a1 + a2 + a3 + a4;
+    }</code></pre></p>
+                <p>Aquí usamos valores en $4$ bloques (<i>loop unrolling</i> $\times 4$)</p>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <p><pre><code class="language-c">if (idx + 7 * blockDim.x &lt N)
+    {
+        float a1 = data[idx];
+        float a2 = data[idx + blockDim.x];
+        float a3 = data[idx + 2 * blockDim.x];
+        float a4 = data[idx + 3 * blockDim.x];
+        float a5 = data[idx + 4 * blockDim.x];
+        float a6 = data[idx + 5 * blockDim.x];
+        float a7 = data[idx + 6 * blockDim.x];
+        float a8 = data[idx + 7 * blockDim.x];
+        data[idx] = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+    }</code></pre></p>
+                <p>Aquí usamos valores en $8$ bloques (<i>loop unrolling</i> $\times 8$)</p>
+                </section>
+
+                <section><h4>Reducción paralela: <i>loop unrolling</i></h4>
+                <div class="mypars">
+                <p>Ejemplo 9: <code>reduccion_global7.cu</code></p>
+                <p>Este código incluye $3$ kernels con distintos factores de <i>unrolling</i>.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: <i>warp unrolling</i></h4>
+                <div class="mypars">
+                <p>Cuando llegamos a $&lt 32$ elementos en un bloque el trabajo cabe en un <i>warp</i>.</p>
+                <p class="fragment">Ya que los <i>threads</i> en un <i>warp</i> están sincronizados implícitamente no necesitamos <code>__syncthreads()</code>.</p>
+                <p class="fragment">Además, tendremos <i>threads</i> que no trabajan mientras el número de sumas va disminuyendo: menos eficiente.</p>
+                <p class="fragment">Podemos <i>unroll</i> dentro del último <i>warp</i> para optimizar más.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: <i>warp unrolling</i></h4>
+                <p><pre><code class="language-c">if (threadIdx.x &lt 32)
+{
+    volatile float *vmem = idata;
+    vmem[threadIdx.x] += vmem[threadIdx.x + 32];
+    vmem[threadIdx.x] += vmem[threadIdx.x + 16];
+    vmem[threadIdx.x] += vmem[threadIdx.x +  8];
+    vmem[threadIdx.x] += vmem[threadIdx.x +  4];
+    vmem[threadIdx.x] += vmem[threadIdx.x +  2];
+    vmem[threadIdx.x] += vmem[threadIdx.x +  1];
+}</code></pre></p>
+                <p>Ejemplo 10: <code>reduccion_global8.cu</code></p>
+                <p>Todos los threads en el <i>warp</i> calcularán, pero es solamente el resultado del primero que necesitamos.</p>
+                </section>
+
+                <section><h4>¿Qué es <i>volatile</i>?</h4>
+                <div class="mypars">
+                <p><code>volatile</code> es un ejemplo de un <i>qualifier</i> (calificador).</p>
+                <p class="fragment">Los calificadores dan indicaciones al compilador.</p>
+                <p class="fragment"><code>volatile</code> asegura que el compilador no intente a optimizar la variable, es decir no se mueve temporalmente a un <i>cache</i> o registro durante la operación del programa.</p>
+                <p class="fragment">Este es para asegurar que no hay <i>race conditions</i> mientras los <i>threads</i> actualizan los valores de <code>vmem</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: memoria compartida</h4>
+                <div class="mypars">
+                <p>Hasta ahora hemos usado memoria global en todos los kernels.</p>
+                <p>Podemos optimizar el acceso a la memoria usando memoria compartida.</p>
+                <p>Ejemplo 11: <code>reduccion_compartida.cu</code></p>
+                </div>
+                </section>
+
+                <section><h4>Reducción paralela: errores</h4>
+                <div class="mypars">
+                <p>El resultado del GPU no es exactamente igual al resultado en el CPU.</p>
+                <p class="fragment">Este es porque siempre hay errores de redondeo, y en el cálculo secuencial estos errores acumulan.</p>
+                <p class="fragment">Por la paralelización se espera que los errores sean <b>menores</b> en el GPU.</p>
+                <p class="fragment">Códigos de Python que muestran la idea: <code>gpu_suma_error.py</code> y <code>gpu_producto_punto_error.py</code></p>
+                <p class="fragment">Ambos códigos usan <code>PyCUDA</code>, un módulo de Python que veremos más tarde.</p>
+                </div>
+                </section>
+
+                <section><h3>Grid-stride loops</h3></section>
+
+                <section><h4>Grid-stride loops</h4>
+                <div class="mypars">
+                <p>Se puede usar <i>grid-stride loops</i> (ciclos con saltos del tamaño de la grilla) para aplicar un kernel a una parte de los datos en una forma secuencial.</p>
+                <p class="fragment">Como ejemplo, consideremos la operación de SAXPY (<i>single-precision A * X plus Y</i>): $Y = A \cdot X + Y$</p>
+                <p><pre class="fragment"><code class="language-c">void saxpy(int N, float a, float* x, float* y){
+    for (int i = 0; i &lt N; ++i)
+        y[i] = a * x[i] + y[i];
+}</code></pre></p>
+                </div>
+                </section>
+
+                <section><h4>Grid-stride loops</h4>
+                <div class="mypars">
+                <p>Si hay $N$ elementos en los vectores $X$ y $Y$, típicamente en el GPU usamos $N$ <i>threads</i>.</p>
+                <p><pre><code>__global__ void saxpy(int N, float a, float* x, float* y){
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i &lt N)
+        y[i] = a * x[i] + y[i];
+}</code></pre></p>
+                </div>
+                </section>
+
+                <section><h4>Grid-stride loops</h4>
+                <div class="mypars">
+                <p>Si hay $N = 2^{20} = 4096 \times 256$ elementos, podemos invocar el kernel con:</p>
+                <p><pre><code>saxpy&lt&lt&lt4096, 256&gt&gt&gt(1&lt&lt20, 2.0, x, y);</code></pre></p>
+                <p>Aseguramos que hay suficientes threads para los elementos de los vectores (usamos multiples de $32$, el número de threads en un <i>warp</i>).</p>
+                </div>
+                </section>
+
+                <section><h4>Grid-stride loops</h4>
+                <p>Podemos usar <b>menos</b> threads y un <i>grid-stride loop</i>.</p>
+                <p><pre><code>__global__ void saxpy(int N, float a, float *x, float *y)
+{
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+          i &lt N; i += blockDim.x * gridDim.x)
+    {
+        y[i] = a * x[i] + y[i];
+    }
+}</code></pre></p>
+                </section>
+
+                <section><h4>Grid-stride loops</h4>
+                <div class="mypars">
+                <p>Cada thread tiene su propio ciclo <code>for</code>.</p>
+                <p class="fragment">El <i>stride</i> del ciclo es <code>blockDim.x * gridDim.x</code> que es igual al número total de threads en el <i>grid</i>.</p>
+                <p class="fragment">Por ejemplo, si hay $1280$ threads, thread $0$ calcula para elementos $0$, $1280$, $2560$, etc.</p>
+                <p class="fragment">Ejemplo 12: <code>grid_stride.cu</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>Grid-stride loops: ¿por qué?</h4>
+                <ul><li>Escalabilidad:</li>
+                    <ul><li>el <i>kernel</i> aplica a cualquier número de elementos en los vectores.</li></ul>
+                    <li>Reutilización:</li>
+                    <ul><li>Hay reutilización de threads, y eso mejora el <i>occupancy</i>.</li></ul>
+                </ul>
+                </section>
+
+                <section><h3><i>Warp primitives</i></h3></section>
+
+                <section><h4><i>Warp primitives</i></h4>
+                <div class="mypars">
+                <p><i>Warp primitives</i> (funciones primitivas de <i>warp</i>) son funciones básicas que se puede usar para trabajar directamente con los <i>threads</i> dentro de un <i>warp</i>.</p>
+                <p class="fragment">Un poco de jerga: un <i>thread</i> dentro de un <i>warp</i> se refiere como un <i>lane</i>.</p>
+                <p class="fragment">Hay muchas funciones disponibles: <a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#warp-shuffle-functions">CUDA Programming Guide</a></p>
+                <p class="fragment">Como ejemplo, veremos una implementación de reducción dentro de un <i>warp</i> con <i>primitives</i>.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Warp primitives</i></h4>
+                <p><pre><code class="language-c">#define FULL_MASK 0xffffffff // 32-bits, todos igual a 1
+for (int stride = 16; stride > 0; stride >>= 1)
+    val += __shfl_down_sync(FULL_MASK, val, stride);</code></pre></p>
+                <figure>
+                <img src="threads_figuras/shfl_down.png" height=200>
+                <figcaption>Fuente: NVIDIA Developer Blog</figcaption>
+                </figure>
+                </section>
+
+                <section><h4><i>Warp primitives</i></h4>
+                <div class="mypars">
+                <p>Ejemplo 13: <code>warp_shuffle_down.cu</code></p>
+                <p>Este ejemplo es bastante artificial, ya que solamente funciona para un vector del tamaño de un <i>warp</i>, pero muestra el uso de un <i>warp primitive</i>.</p>
+                <p>El <i>mask</i> corresponde a los <i>threads</i> que deben estar <b>convergentes</b> en el momento de llegar a la función primitiva.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Warp primitives</i></h4>
+                <div class="mypars">
+                <p>Intercambio de datos entre <b>registros</b>.</p>
+                <p>Más eficiente que el uso de memoria compartida, que requiere un <i>load</i>, un <i>store</i> y otro registro para la dirección en memoria.</p>
+                <p>Otra opción para tener este nivel de control es el uso de <i>cooperative groups</i> (fuera del ámbito de este curso...).</p>
+                </div>
+                </section>
+
+                <section><h4><i>Warp primitives</i></h4>
+                <div class="mypars">
+                <p>Ejemplo 14: <code>warp_shuffle_up.cu</code></p>
+                <p>Ejemplo 15: <code>warp_shuffle_xor.cu</code></p>
+                <p>Ejemplo 16: <code>warp_ballot.cu</code></p>
+                </div>
+                </section>
+
+                <!--<section><h4>Atomic operations</h4></section>
+
+                <section><h4>Mixed precision</h4></section>
+
+                <section><h3><i>Cooperative groups</i></h3></section>
+
+                <section><h3>Memoria global</h3></section>
+
+                <section><h4>Memoria global</h4>
+                <p><ul><li>La memoria principal del GPU, <i>latency</i> alto, <i>bandwidth</i> bajo.</li>
+                       <li class="fragment">Se puede asignar memoria global en una forma dinamica con <code>cudaMalloc</code>.</li>
+                       <li class="fragment">Se puede asignar memoria global en una forma estática en el <i>device</i> con <code>__device__</code>.</li>
+                       
+                       <li class="fragment">El uso eficiente de la memoria global es muy importante para optimizar un código de CUDA.</li></ul></p>
+                </section>
+
+                <section><h4>Memoria global: declaración estática</h4>
+                <p>Ejemplo 1: <code>variableGlobal.cu</code></p>
+                <p>En este programa declaramos una variable global en la memoria global para el <i>device</i>.</p>
+                <p><pre><code class="language-c">#define N 10
+__device__ int devVar[N];
+
+int main(){
+    ...
+    int hostVar[N];
+    ...
+    cudaMemcpyToSymbol(devVar, &hostVar, N*sizeof(int));
+    ...
+}</code></pre></p>
+                </section>
+
+                <section><h4>Memoria global: declaración dinámica</h4>
+                <p>Ejemplo 2: <code>variableGlobalDin.cu</code></p>
+                <p>Mismo programa, pero con una declaración dinámica de la variable (ahora no tiene <i>global scope</i>).</p>
+                <p><pre><code class="language-c">#define N 10
+
+int main(){
+    ...
+    int* hostVar = (int *) malloc(N*sizeof(int));
+    int* devVar;
+    cudaMalloc((int**)&devVar, N*sizeof(int));
+    ...
+    cudaMemcpy(devVar, hostVar, N*sizeof(int), cudaMemcpyHostToDevice);
+    ...
+}</code></pre></p>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <p>La mejor forma de acceder a la memoria global es con acceso <b>alineado</b> y <b>contiguo</b></p>
+                <figure>
+                <img src="memoria_figuras/aligned_coalesced.png">
+                <figcaption>Alineado y contiguo (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                <figure>
+                <img src="memoria_figuras/non_coalesced.png">
+                <figcaption>No alineado ni contiguo (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <p>El tema de acceso alineado no es tan importante comparado con el acceso contiguo.</p>
+                <p>Ejemplo 3: <code>copiarFilas.cu</code> y <code>copiarColumnas.cu</code></p>
+                <figure>
+                <img src="memoria_figuras/row_column.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4 style="position: absolute; top: 0px; left: 100px">Memoria global: acceso eficiente</h4>
+                <div class="mypars">
+                <p style="position: absolute; top: 50px;">Métricas en <code>nvprof</code>: 
+                <ul style="position: absolute; top: 110px;"><li><code>gld_efficiency</code></li>
+                    <li><code>gst_efficiency</code></li></ul></p>
+                <p style="position: absolute; top: 170px;">En <code>ncu</code>:</p>
+                <ul style="position: absolute; top: 220px;"><li>smsp__sass_average_data_bytes_per_sector_mem_global_op_st.pct</li>
+                       <li>smsp__sass_average_data_bytes_per_sector_mem_global_op_ld.pct</li></ul>
+                <p style="position: absolute; top: 280px;">Eficiencia <i>load/store</i> para <code>copiarFilas</code> de $100\%$.</p>
+                <p style="position: absolute; top: 320px;">Para <code>copiarColumnas</code> la eficiencia de <i>load</i> es $25\%$, y para <i>store</i> es $12.5\%$.</p>
+                </div>
+                </section>
+
+                <section><h4>Memoria global: acceso eficiente</h4>
+                <div class="mypars">
+                <p>Operaciones de <i>load</i> pasan por un <i>cache</i>.</p>
+                <p class="fragment">Pero las operaciones de <i>store</i> no pasan por <i>cache</i> así que la eficiencia es menor para guardar valores.</p>
+                <p class="fragment"><span style="color:red">Conclusión importante</span>: el uso de la memoria global es mucho mas eficiente con acceso <span style="color:blue">contiguo</span>.</p>
+                </div>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <figure>
+                <img src="memoria_figuras/row_column.png">
+                <figcaption>Cargar por fila, guardar por columna (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <figure>
+                <img src="memoria_figuras/column_row.png">
+                <figcaption>Cargar por columna, guardar por fila (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta de una matriz</h4>
+                <div class="mypars">
+                <p>Ejemplo 4: <code>transpuesta.cu</code></p>
+                <p class="fragment" data-index=1>La versión que carga por <b>columnas</b> es más rápido... ¿por qué?</p>
+                <p class="fragment" data-index=2>Las cargas de datos pasan por el <i>cache</i>, mientras la operación de guardar datos no utiliza ningún cache.</p>
+                <p class="fragment" data-index=2>Es mejor tener acceso contiguo para guardar ya que no podemos aprovechar del <i>cache</i> en ese caso.</p>
+                </div>
+                </section>
+
+                <section><h3>AoS vs. SoA</h3></section>
+
+                <section><h4>Opciones para estructuras de datos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_22.png">
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Opciones para estructuras de datos</h4>
+                <p>Ejemplo 5: <code>aos.cu</code> y <code>soa.cu</code>.</p>
+                <p>Normalmente se prefiere SoA en programación paralela (acceso contiguo en el GPU)</p>
+                </section>
+
+                <section><h4>Alineamiento de estructuras</h4>
+                <div class="mypars">
+                <p>Parentesis importante (relevante para la programación en general):</p>
+                <p>La organización de los elementos en una estructura tiene consecuencia para el uso de la memoria!</p>
+                <p>Ejemplo 5a: <code>alineamiento_datos.c</code></p>
+                </div>
+                </section>
+
+                <section><h3>Memoria compartida</h3></section>
+
+                <section><h4>Memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_4_2.png" height=400>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Memoria compartida</h4>
+                <p><ul><li>Variables declaradas en el <i>kernel</i> con <code>__shared__</code> están guardadas en memoria compartida.</li>
+                       <li class="fragment">Esta memoria está <i>on-chip</i>: bandwidth alto, latency bajo.</li>
+                       <li class="fragment">Cada SM tiene una cantidad limitada de memoria compartida, dividida entre bloques de <i>threads</i>. Si usamos demasiado memoria compartida el número de <i>warps</i> activos está reducido.</li>
+                       <li class="fragment">Memoria compartida permite comunicación entre los <i>threads</i> (dentro de un bloque).</li></ul></p>
+                </section>
+
+                <section><h4>Memoria compartida - declaración estática</h4>
+                <p><pre><code class="language-c">__shared__ float tile[ny][nx];</code></pre></p>
+                <p>Declarada dentro de un <i>kernel</i>: <i>scope</i> local; declarada fuera de cualquier <i>kernel</i>: <i>scope</i> global.</p>
+                <p>Ya que la memoria compartida está asocidada a un bloque de <i>threads</i>, típicamente tenemos <code>ny, nx</code> igual a las dimensiones de un bloque.</p>
+                </section>
+
+                <section><h4>Memoria compartida - declaración dinámica</h4>
+                <p><pre><code class="language-c">extern __shared__ int tile[];</code></pre></p>
+                <p>Tiene que ser declarada dentro de un <i>kernel</i>.</p>
+                <p>El tamaño del array está definido en el momento de invocar el <i>kernel</i> con el tercer argumento al configuración del <i>kernel</i>.</p>
+                <p><pre><code class="language-c">kernel&lt&lt&ltgrid, block, N * sizeof(int)&gt&gt&gt(...)</code></pre></p>
+                <p>Para declaración dinámica, se puede declarar arrays unidimensional solamente.</p>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <p>Volvemos al ejemplo de la transpuesta de una matriz, pero ahora vamos a usar memoria compartida.</p>
+                <figure>
+                <img src="memoria_figuras/figure_5_15.png">
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4 style="position: absolute; top: 0px; left: 100px">Transpuesta: memoria compartida</h4>
+                <p style="position: absolute; top: 50px; left: 70px">Ejemplo 6: <code>transpuesta_compartida.cu</code>.</p>
+                <p style="position: absolute; top: 100px; left: 70px">Hay tres kernels:</p>
+                <ol style="position: absolute; top: 170px; left: 80px"><li>El kernel para la transpuesta con memoria global.</li>
+                    <li>Un kernel que utiliza memoria compartida estática.</li>
+                    <li>Otro que utiliza memoria compartida dinámica.</li></ul>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <p>Consideramos un ejemplo: matriz de $4 \times 4$ elementos, usamos bloques de $2 \times 2$ (memoria compartida del mismo tamaño).</p>
+                <p><code>blockDim.x, blockDim.y</code> son iguales a $2$, hay $2$ bloques en cada dimensión.</p>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig1.png" height=300>
+                <figcaption>Indices globales de los <i>threads</i>.</figcaption>
+                </figure>
+                <pre><code class="language-c">ix = blockDim.x * blockIdx.x + threadIdx.x
+iy = blockDim.y * blockIdx.y + threadIdx.y</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig2.png" height=300>
+                <figcaption>Indice lineal de los <i>threads</i>.</figcaption>
+                </figure>
+                <pre><code class="language-c">ti = iy * N + ix</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig3.png" height=300>
+                <figcaption>Indices globales después de la "transpuesta de bloques".</figcaption>
+                </figure>
+                <pre><code class="language-c">ixt = blockDim.y * blockIdx.y + threadIdx.x
+iyt = blockDim.x * blockIdx.x + threadIdx.y</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig4.png" height=300>
+                <figcaption>Indice lineal después de la "transpuesta de bloques".</figcaption>
+                </figure>
+                <pre><code class="language-c">to = iyt * N + ixt;</code></pre>
+                </section>
+
+                <section><h4>Transpuesta: memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/transpose_fig5.png" height=300>
+                <figcaption>Elementos guardados en la matriz de salida después de cargar de la memoria compartida.</figcaption>
+                </figure>
+                <pre><code class="language-c">tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_2.png" height=300>
+                <figcaption>Acceso ideal (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_3.png" height=300>
+                <figcaption>Acceso desordenado, pero no problematicio (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Acceso a la memoria compartida</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_4.png" height=300>
+                <figcaption>Potencialmente problematico... (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Organizaciíon de la memoria compartida (bancos)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_5.png" height=300>
+                <figcaption>Bancos de ancho 4-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Organizaciíon de la memoria compartida (bancos)</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_6.png" height=300>
+                <figcaption>Bancos de ancho 8-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_7.png" height=300>
+                <figcaption>Todo bien acá (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_8.png" height=300>
+                <figcaption>Todo bien acá también, gracias al ancho de 8-bytes (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_9.png" height=300>
+                <figcaption>Conflicto! (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Conflictos de bancos</h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_10.png" height=300>
+                <figcaption>Conflicto! (Fuente: Professional CUDA C Programming)</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Solución: <i>padding</i></h4>
+                <figure>
+                <img src="memoria_figuras/figure_5_11.png" height=300>
+                <figcaption>Fuente: Professional CUDA C Programming</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Transpuesta: conflictos de bancos</h4>
+                <pre><code class="language-c">__shared__ float tile[BDIM][BDIM];
+...
+tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                <p>Acceso por columna corresponde a acceso al mismo banco.</p>
+                </section>
+
+                <section><h4>Transpuesta: conflictos de bancos</h4>
+                <pre><code class="language-c">__shared__ float tile[BDIM][BDIM+1];
+...
+tile[threadIdx.y][threadIdx.x] = entrada[ti];
+__syncthreads();
+salida[to] = tile[threadIdx.x][threadIdx.y];</code></pre>
+                <p>Ahora los elementos de una columna van a bancos distintos.</p>
+                </section>
+
+                <section><h3>Memoria constante</h3></section>
+
+                <section><h4>Memoria constante</h4>
+                <p><ul><li>Reside en memoria del <i>device</i>, cada SM tiene un <i>cache</i> asignada a la memoria constante.</li>
+                       <li class="fragment">Se declara una variable que se guarda en esa memoria con <code>__constant__</code>.</li>
+                       <li class="fragment">Tienen que tener <i>global scope</i>, fuera de cualquier <i>kernel</i>. 64KB está disponible.</li>
+                       <li class="fragment">Útil para constantes matemáticas aplicadas por todos los <i>threads</i>.</li>
+                       <li class="fragment"><i>Kernels</i> solamente pueden <b>leer</b> de la memoria constante, así que hay que inicializarla desde el <i>host</i>:</li></ul></p>
+                <p class="fragment"><code>cudaError_t cudaMemcpyToSymbol(const void* simbolo, const void* src, size_t count);</code></p>
+                </section>
+
+                <section><h4>Memoria constante</h4>
+                <p>Ejemplo 7: <code>memoria_constante.cu</code></p>
+                </section>
+
+                <section><h4>Memoria unificada</h4></section>
+
+                <section><h4>Transferencias de memoria</h4>
+                <p><img src="memoria_figuras/figure_4_3.png"></p>
+                <p>Ejemplo para Fermi C2050 GPU (Fuente: Professional CUDA C Programming)</p>
+                </section>
+
+                <section><h4>Memoria <i>pinned</i></h4>
+                <p><ul><li>Memoria en el <i>host</i> es, por defecto, <i>pageable</i>.</li>
+                       <li class="fragment">La memoria está organizada en páginas que el sistema operativo puede mover a la <b>memoria virtual</b> (memoria en el disco duro).</li>
+                       <li class="fragment">Cuando el sistema requiere datos que están en el disco duro, ocurre un <i>page fault</i>, y los datos están copiados del disco al RAM.</li>
+                       <li class="fragment">El GPU no tiene control sobre el movimiento de las páginas de memoria.</li>
+                       <li class="fragment">Transferencie de datos del <i>host</i> al <i>device</i> involucra la asignación de memoria <i>page-locked</i> o <i>pinned</i> en el <i>host</i>.</li>
+                       <li class="fragment">Los datos se transfieren de <i>pageable</i> a <i>pinned</i> y después al <i>device</i>.</li></ul></p>
+                </section>
+
+                <section><h4>Pinned memory</h4>
+                <p><img src="memoria_figuras/figure_4_4.png"></p>
+                </section>
+
+                <section><h4>Asignación de memoria <i>pinned</i></h4>
+                <p><ul><li><code>cudaError_t cudaMallocHost(void **devPtr, size_t count);</code></li>
+                       <li><code>cudaError_t cudaFreeHost(void *ptr);</code></li></ul></p>
+                <p>El uso de demasiado memoria <i>pinned</i> puede afectar el rendimiento del sistema entero, ya que reduce la cantidad de memoria <i>pageable</i> disponible.</p>
+                <p>Ejemplo 8: <code>pinnedMemoryTransfer.cu</code></p>
+                </section>
+
+                <section><h4>Memoria unificada</h4>
+                <p><ul><li>Desde CUDA 6.0, <i>Unified Memory</i> permite el acceso a la memoria usando un solo espacio de direcciones tanto para el GPU como para el CPU.</li>
+                       <li class="fragment">UM se encarga de la transferencia de datos automáticamente.</i>
+                       <li class="fragment">Basado en <i>Unified Virtual Addressing</i> (introducido en CUDA 4.0) que unificó el espacio de direcciones en memoria.</li></ul></p>
+                <p class="fragment">Declaración estática en memoria unificada (a veces llamada <i>managed</i>): <code>__device__ __managed__ int y;</code></p>
+                <p class="fragment">Asignación dinámica de memoria unificada: <code>cudaError_t cudaMallocManaged(void **devPtr, size_t size, unsigned int flags=0);</code></p> 
+                <p class="fragment">El puntero <code>devPtr</code> está válido tanto en el <i>device</i> como en el <i>host</i>.</p>
+                </section>
+
+                <section><h4>Memoria unificada</h4>
+                <p>Ejemplo 9: <code>memoria_unificada.cu</code></p>
+                </section>-->
+
+			</div>
+		</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/js/reveal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.5.0/plugin/math/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/plugin/highlight/highlight.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        math: {
+        mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.8/MathJax.js',
+        config: 'TeX-AMS_HTML-full',
+        // pass other options into `MathJax.Hub.Config()`
+        TeX: { Macros: { RR: "{\\bf R}" } }
+        },
+        plugins: [ RevealHighlight ]
+      });
+    </script>
+
+	</body>
+</html>

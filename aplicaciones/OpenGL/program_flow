@@ -1,0 +1,118 @@
+Program flow:
+
+Main:
+- set environment variable to use local display numbered 0
+- runTest
+
+runTest:
+- initGL
+
+initGL:
+- glutInit(argc, argv) -> initialises GLUT library, negotiates with window system (can use command line arguments, hence the passing of argc, argv to this function)
+- glutInitDisplayMode -> selects display mode using bitwise OR-ing of GLUT display mode bit masks. Code uses GLUT_RGBA and GLUT_DOUBLE. The "DOUBLE" refers to double buffering: having one buffer for display while the other is being written to. Useful for animations where the buffers are swapped.
+- glutInitWindowSize -> sets initial window size in pixels.
+- glutCreateWindow -> creates the window with the given string as title.
+- glutDisplayFunc -> sets display "callback" for current window. The registered function is called whenever the window is redisplayed.
+- glutKeyboardFunc -> sets keyboard "callback" for current window. Each key press given inside the window (which generates an ASCII character) causes this function to be called.
+- glutMotionFunc -> "callback" used when the mouse moves within the window while a mouse button is pressed.
+- glutTimerFunc -> timer "callback" that is triggered in REFRESH_DELAY milliseconds. The "timerEvent" function is then called, with the last argument being a value that is passed to the timer function. This value is used to allow for the code to ignore the function in certain circumstances, as the callback is always executed.
+- glClearColor -> specify the values in the colour buffers when they are cleared (RGBA).
+- glDisable -> disable capabilities of OpenGL, in this case depth checking (to determine if objects are behind others)
+- glViewport -> specifies lower left x,y of viewport and width, height. Viewport is the part of the screen that we render to.
+- glMatrixMode -> specifies which matrix stack is the target for subsequent matrix operations: modelview, projection, texture, color (if ARB_imaging extension is supported). Modelview places object geometry in global unprojected space; projection projects coordinates into clip space, like a lens; texture used for texture projection
+- glLoadIdentity -> replaces current matrix with identity matrix
+- gluPerspective -> sets up a perspective projection matrix, multiplied by the current matrix, so we call glLoadIdentity first to get the actual perspective matrix (field-of-view angle in y, aspect ratio, distance from viewer to near clipping plane, distance from viewer to far clipping plane)
+- return to runTest (with true)
+
+runTest:
+- glutDisplayFunc -> not too sure why these are repeated here...
+- glutKeyboardFunc -> 
+- glutMouseFunc -> sets mouse callback
+- glutMotionFunc -> 
+- glutCloseFunc -> callback for when the GLUT window is closed
+- createVBO
+
+createVBO:
+(the gl* functions here are defined when GL_GLEXT_PROTOTYPES is defined)
+- glGenBuffers(1, vbo) -> returns 1 buffer object name in the array vbo
+- glBindBuffer(GL_ARRAY_BUFFER, *vbo) -> binds the vbo buffer to the target given in the first argument, in this case the vertex attributes
+- glBufferData(GL_ARRAY_BUFFER, size, data, usage) -> creates and initializes a buffer object's data store. This will store the datapoints, so the size is mesh_width*mesh_height*4*sizeof(float), the data supplied is 0, and the usage describes likely use of data (hint to GL implementation), in this case GL_DYNAMIC_DRAW (data will be modified a lot and used as source for drawing).
+- glBindBuffer(GL_ARRAY_BUFFER, 0) -> binds buffer 0?? function creates a buffer if it doesn't exist...
+- cudaGraphicsGLRegisterBuffer -> registers vbo as a CUDA graphics resource, flags are set as cudaGraphicsMapFlagsWriteDiscard meaning CUDA only writes to resource and does not read it
+- return to runTest
+
+runTest:
+- runCuda
+
+runCuda:
+- cudaGraphicsMapResources(1, vbo_resource, 0) -> maps 1 resource (vbo_resource), last argument refers to stream 0 and is guaranteeing that any graphics calls issued before this will complete before any subsequent CUDA work issued in stream 0 begins.
+- cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes, *vbo_resource) -> dptr (returned) is a pointer through which the "vbo_resource" may be accessed, num_bytes is the (returned) size of the buffer we can access starting at *dptr
+- launch_kernel
+
+launch_kernel:
+- simple_vbo_kernel<<< (256/8, 256/8), (8, 8) >>>
+
+simple_vbo_kernel:
+- each thread writes 4-vector of u, w, v, 1.0 coordinates to "pos" array (Note order of u, w, v!)
+- returns to launch_kernel
+
+launch_kernel:
+- returns to runCuda
+
+runCuda:
+- cudaGraphicsUnmapResources(1, vbo_resource, 0) -> reverse of mapping, also synchronizes on stream 0 (in this case) as for mapping. After unmapping the resource may not be accessed by CUDA until mapped again.
+- returns to runTest
+
+runTest:
+- glutMainLoop -> main GLUT event processing loop. Calls any callbacks that have been registered.
+- returns to Main (with true)
+
+main:
+- ENDS
+
+Within the glutMainLoop there are 6 callbacks:
+
+display:
+- calls "runCuda" again (to calculate vertex positions and send to VBO)
+- glClear -> clears given buffers, which are specified with a bitwise OR of bitmasks. In this case we clear the color buffers and depth buffers (although there is no depth testing...?)
+- glMatrixModel -> sets modelview as the current matrix stack
+- glLoadIdentity -> as before
+- glTranslatef -> applies translation matrix (with floats) to current matrix (using current value of translate_z global variable). In this way the sine wave can be moved in the z direction (is this effectively a zoom?)
+- glRotatef(angle, x, y, z) -> applies rotation (with floats) of "angle" around vector given by x,y,z (applied as matrix operation). In this case the vector is pointing in x
+- glRotatef -> for the rotation around y
+- glBindBuffer -> as before, binds vbo to GL_ARRAY_BUFFER (vertex information)
+- glVertexPointer(size, type, stride, pointer) -> defines an array of vertex data, size is number of coords per vertex, type is data type (short, int, float, double), stride is byte offset between consecutive vertices (0 means tightly packed), pointer specifies location of first coordinate of first vertex in array.
+- glEnableClientState -> enables client-side capability, in this case enables the vertex array for writing and rendering
+- glColor3f -> sets current colour (RGB)
+- glDrawArrays(GL_POINTS, 0, mesh_width*mesh_height) -> renders primitives, with GL_POINTS specifying the primitive in this case (other options are GL_TRIANGLES, and a bunch of other things...), 0 refers to the starting index in the enabled arrays, and then we specify how many indices are to be rendered.
+- glDisableClientState -> opposite of glEnableClientState
+- glutSwapBuffers() -> swaps out the two buffers we defined by setting a double buffered display mode.
+- g_fAnim global variable is then incremented (this is the "time" for the sine wave, passed in to the kernel)
+
+timerEvent:
+- glutGetWindow() -> called within an if statement to confirm there is a GLUT window active (if there is no window it returns 0, if there is a window it returns an ID number, which is interpreted as True because it is non-zero)
+- glutPostRedsiplay() -> flags current window as requiring a redisplay (i.e. it calls display() again)
+- glutTimerFunc -> this same function is then re-registered as the timer function, so that the timer is always active.
+
+cleanup:
+- defined as the glutCloseFunc callback, calls deleteVBO if vbo exists
+
+deleteVBO:
+- cudaGraphicsUnregisterResource -> unregisters the vbo with CUDA
+- glBindBuffer(1, *vbo) -> binds the vbo to the buffer 1??
+- glDeleteBuffers(1, vbo) -> deletes n buffer objects, with the second argument giving the array of buffer objects to be deleted. In this case we delete 1 buffer that is pointed to by vbo. In the documentation we have: "If a buffer object that is currently bound is deleted, the binding reverts to 0 (the absence of any buffer object)." Presumably this is why the binding is done before?
+- *vbo = 0 -> presumably to nullify the pointer
+
+keyboard:
+- first argument is ASCII code of key press, and two more arguments that refer to mouse location within window. If key 27 (escape) is pressed, calls glutDestroyWindow(glutGetWindow()) which eliminates the window (not sure if it calls the glutCloseFunc callback or not).
+
+mouse:
+- 4 arguments, button, state, x, y. State is GLUT_DOWN or GLUT_UP (mouse pressed or released), x,y are the coordinates in the window when the state is changed. mouse_buttons is set using bitwise inclusive OR assignment with mouse_buttons | 1<<button for a down press, 0 upon release. Not too sure what value "button" takes, uses GLUT_LEFT_BUTTON, GLUT_MIDDLE_BUTTON, GLUT_RIGHT_BUTTON enums.
+
+motion:
+- called when the mouse is moved within the window while a button is pressed. x,y coordinates are constantly updated through the movement? The "mouse_buttons" variable is used to determine if this is a rotation or a zoom(?)
+
+OpenGL -> API for rendering 2D and 3D vector graphics
+OpenGL Utility Toolkit (GLUT) -> utilities for OpenGL programs, mainly for system-level I/O with host operating system (window definition, control, keyboard input, etc.)
+
+cuda_gl_interop.h required for the cudaGraphics* functions (part of Toolkit, i.e. NOT in the samples/common/inc directory)

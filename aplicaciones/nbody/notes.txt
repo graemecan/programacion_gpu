@@ -1,0 +1,1 @@
+La versión del código en el Toolkit está escrita en C++ y contiene MUCHAS opciones. Esta versión está en C y es mucho más básica.

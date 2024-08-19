@@ -1,0 +1,1044 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="chrome=1" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+
+<title>Aplicaciones</title>
+
+<!-- General and theme style sheets -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/reveal.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/css/theme/white.css" id="theme">
+<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/lib/css/zenburn.css"> -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/sunburst.min.css">
+
+
+        <style type="text/css">
+            .container{
+                        display: flex;
+                      }
+            .col{
+                      flex: 1;
+                }
+            .reveal section p {
+                      display: inline-block;
+                      font-size: 0.6em;
+                      line-height: 1.2em;
+                      vertical-align: top;
+                      text-align: left;
+            }
+            .reveal section li {
+                      font-size: 0.6em;
+            }
+            .reveal section td {
+                      font-size: 0.6em;
+            }
+            .reveal section img {
+                      border: none;
+            }
+            .reveal section figcaption {
+                      font-size: 0.4em;
+            }
+            div.mypars {text-align: left}
+        </style>
+
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+                <section><h2>Aplicaciones</h2>
+                </section>
+
+                <section><h3>Simulaciones: N-cuerpos</h3>
+                <h4>Ejemplo del <i>CUDA Toolkit</i></h4>
+                </section>
+
+                <section><h4>Simulaciones: N-cuerpos</h4>
+                <div class="mypars">
+                <p>Una simulación de N-cuerpos se trata de $N$ masas, representadas como partículas.</p>
+                <p class="fragment">La fuerza gravitacional entre estas masas está calculada en la simulación.</p>
+                <p class="fragment">De la fuerza podemos obtener la aceleración que actua en cada partícula.</p>
+                <p class="fragment">De la aceleración podemos actualizar la velocidad de cada partícula, y su posición.</p>
+                <p class="fragment">Repetimos este proceso cada <i>timestep</i> para evolucionar las partículas.</p>
+                </div>
+                </section>
+
+                <section><h4>Simulaciones: N-cuerpos</h4>
+                <div class="mypars">
+                <p>Hay varios métodos para obtener la fuerza gravitacional. El más directo es simplemente sumar todas las fuerzas entre cada par de partículas (método de sumación directa).</p>
+                <p class="fragment">Requiere una expresión para la fuerza entre un par de partículas (ley universal de la gravedad de Newton).</p>
+                <p class="fragment">La desventaja es la complejidad algorítmica: $\mathcal{O}(N^2)$.</p>
+                </div>
+                </section>
+
+                <section><h4>Simulaciones: N-cuerpos</h4>
+                <div class="mypars">
+                <p>Fuerza entre $2$ cuerpos: $\mathbb{F}_{ij} = G \frac{m_i m_j}{r_{ij}^2} \cdot \frac{\mathbb{r}_{ij}}{r_{ij}}$</p>
+                <p>donde $m_i$ y $m_j$ son las masas $i$ y $j$, $\mathbb{r}_{ij} = \mathbb{x}_j - \mathbb{x}_i$.</p>
+                <p class="fragment">La fuerza total $\mathbb{F}_i$ en partícula $i$ está dada por:</p>
+                <p class="fragment">$$\mathbb{F}_i = \sum_{j \neq i}^N \mathbb{F}_{ij} = Gm_i \sum_{j \neq i}^N \frac{m_j \mathbb{r}_{ij}}{r_{ij}^3}$$</p>
+                </div>
+                </section>
+
+                <section><h4>Simulaciones: N-cuerpos</h4>
+                <div class="mypars">
+                <p>La fuerza crece arbitrariamente grande cuando dos partículas están muy cercanas. Típicamente no es necesario resolver correctamente la dinámica entre dos partículas cercanas para galaxias (o cualquier sistema <b>no colisional</b>).</p>
+                <p class="fragment">$$\mathbb{F}_i \approx Gm_i \sum_{j}^N \frac{m_j \mathbb{r}_{ij}}{(r_{ij}^2 + \epsilon^2)^{3/2}}$$</p><br>
+                <p class="fragment">El factor $\epsilon$ se llama <i>softening length</i>.</p>
+                <p class="fragment">En la práctica necesitamos la aceleración: $\mathbb{a}_i = \mathbb{F}_i/m_i$.</p>
+                </div>
+                </section>
+
+                <section><h4>Simulaciones: N-cuerpos</h4>
+                <div class="mypars">
+                <p>Para actualizar las velocidades y posiciones, usamos un integrador de <i>leapfrog-Verlet</i>:</p>
+                <p>$v_{i+1/2} = v_{i-1/2} + a_i \Delta t$</p><br>
+                <p>$x_{i+1} = x_i + v_{i+1/2} \Delta t$</p>
+                </div>
+                </section>
+
+                <section><h4>Paralelización del cálculo</h4>
+                <div class="mypars">
+                <p>El algoritmo consiste en calcular cada elemento de una matriz $\mathbb{F}_{ij}$ de $N \times N$ de fuerzas entre pares de partículas.</p>
+                <p class="fragment">La fuerza total en partícula $i$ resulta de la suma de todos los elementos en fila $i$ de la matriz.</p>
+                <p class="fragment">Se puede calcular cada elemento independientemente (paralelismo de $\mathcal{O}(N^2)$) pero requeriría memoría de $\mathcal{O}(N^2)$, y estaría muy limitado por <i>bandwidth</i>.</p>
+                <p class="fragment">En esta implementación, se utiliza un <i>tile</i>: una sub-matriz de $p \times p$ elementos.</p>
+                </div>
+                </section>
+
+                <section><h4>Paralelización del cálculo</h4>
+                <figure>
+                <img src="aplicaciones_figuras/p_tile.png">
+                <figcaption>Fuente: GPU Gems Vol. 3</figcaption>
+                </figure>
+                <div class="mypars">
+                <p>Usamos los datos de $2p$ partículas para calcular $p^2$ valores de la matriz $\mathbb{F}_{ij}$.</p>
+                <p>Las filas se caclulan en forma paralela, mientras las columnas se calculan en forma secuencial.</p>
+                </div>
+                </section>
+
+                <section><h4>Cálculo de la fuerza entre un par de partículas</h4>
+                <p><pre><code class="language-c">__device__ float3 bodyBodyInteraction(float4 bi, float4 bj, float3 ai)
+{
+    float3 r;
+
+    // r_ij [3 FLOPS]
+    r.x = bj.x - bi.x;
+    r.y = bj.y - bi.y;
+    r.z = bj.z - bi.z;
+
+    // distSqr = dot(r_ij, r_ij) + EPS^2 [6 FLOPS]
+    float distSqr = r.x * r.x + r.y * r.y + r.z * r.z + EPS2;
+
+    // invDistCube = 1/distSqr^(3/2) [4 FLOPS: 2 mul, 1 sqrt, 1 inv]
+    float distSixth = distSqr * distSqr * distSqr;
+    float invDistCube = 1.0f/sqrtf(distSixth);
+
+    // s = m_j * invDistCube [1 FLOP]
+    float s = bj.w * invDistCube;
+
+    // a_i = a_i + s * r_ij [6 FLOPS]
+    ai.x += r.x * s;
+    ai.y += r.y * s;
+    ai.z += r.z * s;
+
+    return ai;
+}</code></pre></p>
+                </section>
+
+                <section><h4>Cálculo de la fuerza entre un par de partículas</h4>
+                <div class="mypars">
+                <p>Se usa <code>float4</code> para datos en memoria del <i>device</i> para ayudar con acceso contiguo. El valor <code>w</code> corresponde a la masa.</p>
+                <p>El uso de <code>float3</code> en la función es para variables locales donde hay que reducir el espacio usado en registros.</p>
+                </div>
+                </section>
+
+                <section><h4>Cálculo de los <i>tiles</i></h4>
+                <div class="mypars">
+                <p>Los datos para $p$ partículas están cargados de la memoria global a memoria compartida para un bloque.</p>
+                <p class="fragment">Cada <i>thread</i> en el bloque calcula $p$ interacciones.</p>
+                <p class="fragment">El resultado del cálculo de un <i>tile</i> es $p$ aceleraciones <b>parcialmente</b> actualizadas.</p>
+                </div>
+                </section>
+
+                <section><h4>Cálculo de los <i>tiles</i></h4>
+                <p><pre><code class="language-c">__device__ float3 tile_calculation(float4 myPosition, float3 accel)
+{
+    int i;
+    extern __shared__ float4[] shPosition;
+
+    for (i = 0; i &lt blockDim.x; i++){
+        accel = bodyBodyInteraction(myPosition, shPosition[i], accel);
+    }
+    return accel;
+}</code></pre></p>
+                <div class="mypars">
+                <p>Cada <i>thread</i> en el bloque ejecuta la función arriba para <b>los mismos</b> $p$ partículas. Así que el acceso a memoria compartida es de tipo <i>broadcast</i> y no hay conflictos de bancos.</p>
+                </div>
+                </section>
+
+                <section><h4>Varios <i>tiles</i> en un bloque</h4>
+                <div class="mypars">
+                <p>Cada bloque tiene $p$ <i>threads</i> y calcula $N/p$ <i>tiles</i> en forma secuencial.</p>
+                <p class="fragment" data-fragment-index="1">Antes de calcular un <i>tile</i>, cada thread copia los datos de una partícula a la memoria compartida.</p>
+                <p class="fragment" data-fragment-index="2">Al final de copiar los datos de las $p$ partículas, hay sincronización de threads.</p>
+                </div>
+                <figure>
+                <img src="aplicaciones_figuras/multiple_tiles.png" height=200 class="fragment" data-fragment-index="3">
+                <figcaption class="fragment" data-fragment-index="3">Fuente: GPU Gems Vol. 3</figcaption>
+                </figure>
+                </section>
+
+                <section><h4>Calculo de todas las fuerzas</h4>
+                <p><pre><code class="language-c">__global__ void calculate_forces(void *devX, void *devA)
+{
+    extern __shared__ float4[] shPosition;
+
+    float4 *globalX = (float4 *)devX;
+    float4 *globalA = (float4 *)devA;
+    float4 myPosition;
+    int i, tile;
+    float3 acc = {0.0f, 0.0f, 0.0f};
+    int gtid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    myPosition = globalX[gtid];
+
+    for (i = 0, tile = 0; i &lt N; i += p, tile++) {
+        int idx = tile * blockDim.x + threadIdx.x;
+        shPosition[threadIdx.x] = globalX[idx];
+        __syncthreads();
+        acc = tile_calculation(myPosition, acc);
+        __syncthreads();
+    }
+
+    // Save result in global memory for time integration
+    float4 acc4 = {acc.x, acc.y, acc.z, 0.0f};
+    globalA[gtid] = acc4;
+}</code></pre></p>
+                </section>
+
+                <section><h4>Todas las partículas</h4>
+                <div class="mypars">
+                <p>Con $p$ threads por bloque, y $N$ partículas, necesitamos $N/p$ bloques en la grilla.</p>
+                <p>Este resulta en $N$ threads calculando $N$ interacciones ($N^2$ en total).</p>
+                </div>
+                </section>
+
+                <section><h4>Todas las partículas</h4>
+                <figure>
+                <img src="aplicaciones_figuras/full_calc_nbody.png" height=400>
+                <figcaption>Fuente: GPU Gems Vol. 3</figcaption>
+                </figure>
+                <p>Ejemplo 1: <code>nbody.cu</code> (basado en un ejemplo del <i>CUDA Toolkit</i>)</p>
+                </section>
+
+                <section><h3>OpenGL</h3>
+                </section>
+
+                <section><h4>OpenGL</h4>
+                <div class="mypars">
+                <p>Creado en 1992 por Silicon Graphics.</p>
+                <p>Un API para estandarizar el uso de graficos en 3D.</p>
+                <p>Actulamente el estandar está mantenido por <i>Khronos Group</i> y el <i>OpenGL Architectural Review Board (ARB)</i>.</p>
+                <p>Basado en el proceso de <b>rasterización</b>.</p>
+                </div>
+                </section>
+
+                <section><h4>Rasterización</h4>
+                <div class="mypars">
+                <p>Objetos en 3D están especificados por triangulos, vertices y líneas.</p>
+                <p>El programador puede definir la posición y ángulo de una cámara.</p>
+                <p>Rasterización: para cada triangulo en el espacio 3D, identificar en cuales pixeles en la pantalla el triangulo estaría proyectado.</p>
+                </div>
+                <img src="aplicaciones_figuras/raytracing-raster.png">
+                </section>
+
+                <section><h4>OpenGL</h4>
+                <div class="mypars">
+                <p>Interfaz para el programador al <i>hardware</i> del GPU.</p>
+                <p>API especifíca:</p>
+                <p><ul><li>primitivos: puntos, líneas, polígonos.</li>
+                       <li>propiedades: colores, luces, texturas, etc.</li>
+                       <li>vista: posición de la cámara y perspectiva.</li></ul></p>
+                <p>Conexión entre CUDA y OpenGL: se puede referir a datos en la memoria del GPU (generados por CUDA) directamente desde OpenGL.</p>
+                </div>
+                </section>
+
+                <section><h4>Interoperabilidad</h4>
+                <div class="mypars">
+                <p>CUDA C: gestión de la memoria a través de <code>malloc</code>, punteros, etc.</p>
+                <p>OpenGL: guarda sus datos en <i>buffers</i> que son abstractos y genéricos, que se llaman <i>buffer objects</i>.</p>
+                <p>Concepto prinicipal: <i>map/unmap</i> de un <i>buffer</i> de OpenGL en el espacio de memoria de CUDA.</p>
+                <p>Hay que incluir <code>cuda_gl_interop.h</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <div class="mypars">
+                <p>Ejemplo 2: <code>simpleGL.cu</code> (basado en un ejemplo del <i>CUDA Toolkit</i>)</p>
+                </div>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <div class="mypars">
+                <p>Pasos:</p>
+                <p><ol><li>Crear un <i>buffer object</i> de vertices (VBO) que está vacio.</li>
+                       <li>Registrar el VBO con CUDA.</li>
+                       <li><i>Map</i> el VBO para que acepte datos de CUDA.</li>
+                       <li>Invocar un <i>kernel</i> para modificar las posiciones de los vertices.</li>
+                       <li><i>Unmap</i> el VBO.</li>
+                       <li>Dibujar los resultados con OpenGL</li></ol></p>
+                </div>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <div class="mypars">
+                <p>El uso de OpenGL difiere para distintos sistemas operativos. Aquí vamos a ver como usarlo en Linux.</p>
+                <p><pre><code>#define GL_GLEXT_PROTOTYPES
+#include &ltGL/freeglut.h&gt</code></pre></p>
+                <p>Hay que tener OpenGL, OpenGL Utility y FreeGLUT instalado (instalando FreeGLUT instalará los otros).</p>
+                <p>Para compilar un programa con OpenGL en Linux se puede usar: <code>nvcc nombre_del_programa.cu -lglut -lGL -lGLU</code>.</p>
+                </div>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <div class="mypars">
+                <p>Definimos como variables globales las siguientes variables:</p>
+                <p><pre><code>GLuint vbo;
+struct cudaGraphicsResource *cuda_vbo_resource;</code></pre></p>
+                <p>La primera es simplemente un tipo de <code>unsigned int</code> definido en OpenGL, para referir a un VBO.</p>
+                <p>La segunda es un puntero que apunta a un tipo definido en <code>cuda_gl_interop.h</code> para apuntar al VBO desde CUDA.</p>
+                </div>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>int main(int argc, char **argv)
+{
+    setenv ("DISPLAY", ":0", 0); // define una variable del entorno
+    runTest(argc, argv);
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>bool runTest(int argc, char **argv)
+{
+    // Inicializamos OpenGL
+    if (false == initGL(&argc, argv))
+    {
+        return false;
+    }
+
+    // registrar los *callbacks*
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+    glutMouseFunc(mouse);
+    glutMotionFunc(motion);
+    glutCloseFunc(cleanup);
+
+    // crear el VBO
+    createVBO(&vbo, &cuda_vbo_resource, cudaGraphicsMapFlagsWriteDiscard);
+
+    // ejecutar la parte de CUDA
+    runCuda(&cuda_vbo_resource);
+
+    // comenzar el *mainloop* donde OpenGL
+    // dibuja la pantalla y escucha para eventos
+    glutMainLoop();
+
+    return true;
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>bool initGL(int *argc, char **argv)
+{
+    glutInit(argc, argv);
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+    glutInitWindowSize(window_width, window_height);
+    glutCreateWindow("Cuda GL Interop (VBO)");
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+    glutMotionFunc(motion);
+    glutTimerFunc(REFRESH_DELAY, timerEvent,0);
+
+    // default initialization
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glDisable(GL_DEPTH_TEST);
+
+    // viewport
+    glViewport(0, 0, window_width, window_height);
+
+    // projection
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
+
+    return true;
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res, unsigned int vbo_res_flags)
+{
+    // crear el *buffer object*
+    glGenBuffers(1, vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+
+    // inicializar *buffer object*
+    unsigned int size = mesh_width * mesh_height * 4 * sizeof(float);
+    glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // registrar este *buffer object* con CUDA
+    cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags);
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>void runCuda(struct cudaGraphicsResource **vbo_resource)
+{
+    // mapear *buffer object* de OpenGL para escribir datos desde CUDA
+    float4 *dptr;
+    cudaGraphicsMapResources(1, vbo_resource, 0);
+    size_t num_bytes;
+    cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes,
+                                                         *vbo_resource);
+
+
+    launch_kernel(dptr, mesh_width, mesh_height, g_fAnim);
+
+    // unmap buffer object
+    cudaGraphicsUnmapResources(1, vbo_resource, 0);
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>void launch_kernel(float4 *pos, unsigned int mesh_width, unsigned int mesh_height, float time)
+{
+    // invocar el kernel
+    dim3 block(8, 8, 1);
+    dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
+    simple_vbo_kernel&lt&lt&lt grid, block&gt&gt&gt(pos, mesh_width, mesh_height, time);
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>__global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int height, float time)
+{
+    unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    // calculate uv coordinates
+    float u = x / (float) width;
+    float v = y / (float) height;
+    u = u*2.0f - 1.0f;
+    v = v*2.0f - 1.0f;
+
+    // calculate simple sine wave pattern
+    float freq = 4.0f;
+    float w = sinf(u*freq + time) * cosf(v*freq + time) * 0.5f;
+
+    // write output vertex
+    pos[y*width+x] = make_float4(u, v, w, 1.0f);
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p><pre><code>void display()
+{
+    // invocar kernel de CUDA para generar posiciones de los vertices
+    runCuda(&cuda_vbo_resource);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // fijar matriz de la vista
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(0.0, 0.0, translate_z);
+    glRotatef(rotate_x, 1.0, 0.0, 0.0);
+    glRotatef(rotate_y, 0.0, 1.0, 0.0);
+
+    // dibujar (render) del VBO
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glVertexPointer(4, GL_FLOAT, 0, 0);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glColor3f(1.0, 0.0, 0.0);
+    glDrawArrays(GL_POINTS, 0, mesh_width * mesh_height);
+    glDisableClientState(GL_VERTEX_ARRAY);
+
+    glutSwapBuffers();
+
+    g_fAnim += 0.01f;
+}</code></pre></p>
+                </section>
+
+                <section><h4>Un ejemplo en detalles</h4>
+                <p>Hay otras funciones que se llaman <i>event handlers</i>:</p>
+                <p><ul><li><code>timerEvent</code>: corre despues de cierto tiempo.</li>
+                       <li><code>keyboard</code>: responde si el usuario toca el teclado.</li>
+                       <li><code>mouse</code>: responde a los botones del mouse/trackpad.</li>
+                       <li><code>motion</code>: responde a movimiento del mouse/trackpad.</li></ul></p>
+                </section>
+
+                <section><h4>Visualización: snapshots de simulaciones de N-cuerpos</h4>
+                <p>Ejemplo 3: <code>nbody_viewer.cu</code></p>
+                </section>
+
+                <section><h3>Visualización: <i>ray tracing</i></h3>
+                <p>Peter Shirley: <a href="https://raytracing.github.io/books/RayTracingInOneWeekend.html">Ray Tracing In One Weekend</a></p><br>
+                <p>Roger Allen: <a href="https://github.com/rogerallen/raytracinginoneweekendincuda">RTIOW In CUDA</a></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Introducción</h4>
+                <div class="mypars">
+                <p>Vamos a escribir un programa que aplica la técnica de <i>ray-tracing</i>.</p>
+                <p>En esta técnica la luz en una escena está calculado según las trayectorias de los rayos de luz.</p>
+                </div>
+                <figure>
+                <img src="aplicaciones_figuras/rtx.png">
+                <figcaption>Fuente: IGN</figcaption>
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Introducción</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ray_tracing.jpeg">
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Introducción</h4>
+                <div class="mypars">
+                <p>El programa estará escrito en C++.</p>
+                <p>Por lo tanto, vamos a aprender un poco de <b>programación orientada a objetos</b>.</p>
+                <p>Este paradigma de programación es muy útil para aplicaciones como <i>ray-tracing</i>.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <div class="mypars">
+                <p>Usaremos un formato de imagen que se llama <b>ppm</b>.</p>
+                <p>Se puede guardar la imagen en un archivo de texto.</p>
+                <p>La primera programa que escribiremos crea una imagen con gradientes de colores.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <p>Ejemplo de una imagen en formato <b>ppm</b>:</p>
+                <p><pre><code>P3
+1200 600
+255
+0 255 51
+0 255 51
+0 255 51
+0 255 51
+0 255 51
+1 255 51
+1 255 51
+1 255 51
+1 255 51
+1 255 51
+...</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <ul><li>Primera línea: "P3" define que el formato es ASCII.</li>
+                    <li>Segunda línea: número de pixeles en $x$ y $y$.</li>
+                    <li>Tercera línea: valor máximo del color en cada canal. $255$ corresponde a colores de $8$-bit. Se puede usar hasta $65535$ ($16$-bit).</li></ul>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <div class="mypars">
+                <p>Librería para salida/entrada en C++: <code>iostream</code>.</p>
+                <p>Para imprimir algo al terminal/archivo se usa el operador de <i>stream</i>: <code>std::cout << "Hola Mundo!" << "\n";</code></p>
+                <p><code>std::cout</code> es <i>standard out</i> (el terminal), <code>std::cerr</code> es <i>standard error</i>.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <p><pre><code class="language-c++">int main() {
+    int nx = 1200;
+    int ny = 600;
+    int tx = 8;
+    int ty = 8;
+
+    // mandamos mensajes a "standard error" manteniendo "standard out"
+    // solamente para la salida de los datos de la imagen
+    std::cerr &lt&lt "Rendering a " &lt&lt nx &lt&lt "x" &lt&lt ny &lt&lt " image ";
+    std::cerr &lt&lt "in " &lt&lt tx &lt&lt "x" &lt&lt ty &lt&lt " blocks.\n";
+
+    int num_pixels = nx*ny;
+    size_t fb_size = 3*num_pixels*sizeof(float);
+
+    // asignar "buffer" (espacio en memoria para los pixeles)
+    float *fb;
+    cudaMallocManaged((void **)&fb, fb_size);
+
+    clock_t start, stop;
+    start = clock();
+    // Calcular ("render") los valores de los pixeles
+    dim3 blocks(nx/tx+1,ny/ty+1);
+    dim3 threads(tx,ty);
+    render&lt&lt&ltblocks, threads&gt&gt&gt(fb, nx, ny);
+    cudaGetLastError();
+    cudaDeviceSynchronize();
+    stop = clock();
+    double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
+    std::cerr &lt&lt "took " &lt&lt timer_seconds &lt&lt " seconds.\n";
+
+    // Mandamos los datos de la imagen a "standard out"
+    // Se puede redirigir "standard out" a un archivo con "&gt" en Linux
+    std::cout &lt&lt "P3\n" &lt&lt nx &lt&lt " " &lt&lt ny &lt&lt "\n255\n";
+    for (int j = ny-1; j &gt= 0; j--) {
+        for (int i = 0; i &lt nx; i++) {
+            size_t pixel_index = j*3*nx + i*3;
+            float r = fb[pixel_index + 0];
+            float g = fb[pixel_index + 1];
+            float b = fb[pixel_index + 2];
+            int ir = int(255.99*r);
+            int ig = int(255.99*g);
+            int ib = int(255.99*b);
+            std::cout &lt&lt ir &lt&lt " " &lt&lt ig &lt&lt " " &lt&lt ib &lt&lt "\n";
+        }
+    }
+
+    cudaFree(fb);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <p><pre><code class="language-c++">__global__ void render(float *fb, int max_x, int max_y) {
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int j = threadIdx.y + blockIdx.y * blockDim.y;
+    if((i &gt= max_x) || (j &gt= max_y)) return;
+    int pixel_index = j*max_x*3 + i*3;
+    fb[pixel_index + 0] = float(i) / max_x;
+    fb[pixel_index + 1] = float(j) / max_y;
+    fb[pixel_index + 2] = 0.2;
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <div class="mypars">
+                <p><code>nvcc -arch=sm_50 ch01_rt.cu -o ch01_rt.x</code></p><br>
+                <p><code>./ch01_rt.x > out.ppm</code></p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ch01_rt.png">
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 1</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ch01_rt.png">
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <div class="mypars">
+                <p>Ahora vamos a comenzar con aspectos de <b>programación orientada a objetos</b>.</p>
+                <p>Para visualizaciones tridimensional, necesitamos vectores en 3D.</p>
+                <p>No existe un tipo de datos (básico) en C/C++ que corresponde a un vector tridimensional.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <div class="mypars">
+                <p>Definimos una <b>clase</b> de vectores en 3D, que llamamos <code>vec3</code>.</p>
+                <p>Podemos crear <b>objetos</b> que pertenecen a esa clase (es decir, un vector en 3D).</p>
+                <p>Estos objetos tendrán <b>atributos</b> (propiedades, e.g. longitud) y <b>métodos</b> (funciones, e.g. producto punto).</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>#ifndef VEC3H
+#define VEC3H
+
+#include &ltmath.h&gt
+#include &ltstdlib.h&gt
+#include &ltiostream&gt
+
+class vec3  {</code></pre></p>
+                </section>
+                
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>public:
+    __host__ __device__ vec3() {}
+    __host__ __device__ vec3(float e0, float e1, float e2) { e[0] = e0; e[1] = e1; e[2] = e2; }</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>    __host__ __device__ inline float x() const { return e[0]; }
+    __host__ __device__ inline float y() const { return e[1]; }
+    __host__ __device__ inline float z() const { return e[2]; }
+    __host__ __device__ inline float r() const { return e[0]; }
+    __host__ __device__ inline float g() const { return e[1]; }
+    __host__ __device__ inline float b() const { return e[2]; }</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>    __host__ __device__ inline const vec3& operator+() const { return *this; }
+    __host__ __device__ inline vec3 operator-() const { return vec3(-e[0], -e[1], -e[2]); }
+    __host__ __device__ inline float operator[](int i) const { return e[i]; }
+    __host__ __device__ inline float& operator[](int i) { return e[i]; };</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>    __host__ __device__ inline vec3& operator+=(const vec3 &v2);
+    __host__ __device__ inline vec3& operator-=(const vec3 &v2);
+    __host__ __device__ inline vec3& operator*=(const vec3 &v2);
+    __host__ __device__ inline vec3& operator/=(const vec3 &v2);
+    __host__ __device__ inline vec3& operator*=(const float t);
+    __host__ __device__ inline vec3& operator/=(const float t);</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>    __host__ __device__ inline float length() const { return sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]); }
+    __host__ __device__ inline float squared_length() const { return e[0]*e[0] + e[1]*e[1] + e[2]*e[2]; }
+    __host__ __device__ inline void make_unit_vector();
+
+    float e[3];
+};</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>inline std::istream& operator&gt&gt(std::istream &is, vec3 &t) {
+    is &gt&gt t.e[0] &gt&gt t.e[1] &gt&gt t.e[2];
+    return is;
+}
+
+inline std::ostream& operator&lt&lt(std::ostream &os, const vec3 &t) {
+    os &lt&lt t.e[0] &lt&lt " " &lt&lt t.e[1] &lt&lt " " &lt&lt t.e[2];
+    return os;
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>__host__ __device__ inline void vec3::make_unit_vector() {
+    float k = 1.0 / sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]);
+    e[0] *= k; e[1] *= k; e[2] *= k;
+}
+
+__host__ __device__ inline vec3 operator+(const vec3 &v1, const vec3 &v2) {
+    return vec3(v1.e[0] + v2.e[0], v1.e[1] + v2.e[1], v1.e[2] + v2.e[2]);
+}
+
+__host__ __device__ inline vec3 operator-(const vec3 &v1, const vec3 &v2) {
+    return vec3(v1.e[0] - v2.e[0], v1.e[1] - v2.e[1], v1.e[2] - v2.e[2]);
+}
+
+__host__ __device__ inline vec3 operator*(const vec3 &v1, const vec3 &v2) {
+    return vec3(v1.e[0] * v2.e[0], v1.e[1] * v2.e[1], v1.e[2] * v2.e[2]);
+}
+
+__host__ __device__ inline vec3 operator/(const vec3 &v1, const vec3 &v2) {
+    return vec3(v1.e[0] / v2.e[0], v1.e[1] / v2.e[1], v1.e[2] / v2.e[2]);
+}
+
+__host__ __device__ inline vec3 operator*(float t, const vec3 &v) {
+    return vec3(t*v.e[0], t*v.e[1], t*v.e[2]);
+}
+
+__host__ __device__ inline vec3 operator/(vec3 v, float t) {
+    return vec3(v.e[0]/t, v.e[1]/t, v.e[2]/t);
+}
+
+__host__ __device__ inline vec3 operator*(const vec3 &v, float t) {
+    return vec3(t*v.e[0], t*v.e[1], t*v.e[2]);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>__host__ __device__ inline float dot(const vec3 &v1, const vec3 &v2) {
+    return v1.e[0] *v2.e[0] + v1.e[1] *v2.e[1]  + v1.e[2] *v2.e[2];
+}
+
+__host__ __device__ inline vec3 cross(const vec3 &v1, const vec3 &v2) {
+    return vec3( (v1.e[1]*v2.e[2] - v1.e[2]*v2.e[1]),
+                (-(v1.e[0]*v2.e[2] - v1.e[2]*v2.e[0])),
+                (v1.e[0]*v2.e[1] - v1.e[1]*v2.e[0]));
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>__host__ __device__ inline vec3& vec3::operator+=(const vec3 &v){
+    e[0]  += v.e[0];
+    e[1]  += v.e[1];
+    e[2]  += v.e[2];
+    return *this;
+}
+
+__host__ __device__ inline vec3& vec3::operator*=(const vec3 &v){
+    e[0]  *= v.e[0];
+    e[1]  *= v.e[1];
+    e[2]  *= v.e[2];
+    return *this;
+}
+
+__host__ __device__ inline vec3& vec3::operator/=(const vec3 &v){
+    e[0]  /= v.e[0];
+    e[1]  /= v.e[1];
+    e[2]  /= v.e[2];
+    return *this;
+}
+
+__host__ __device__ inline vec3& vec3::operator-=(const vec3& v) {
+    e[0]  -= v.e[0];
+    e[1]  -= v.e[1];
+    e[2]  -= v.e[2];
+    return *this;
+}
+
+__host__ __device__ inline vec3& vec3::operator*=(const float t) {
+    e[0]  *= t;
+    e[1]  *= t;
+    e[2]  *= t;
+    return *this;
+}
+
+__host__ __device__ inline vec3& vec3::operator/=(const float t) {
+    float k = 1.0/t;
+
+    e[0]  *= k;
+    e[1]  *= k;
+    e[2]  *= k;
+    return *this;
+}
+
+__host__ __device__ inline vec3 unit_vector(vec3 v) {
+    return v / v.length();
+}
+
+#endif</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>__global__ void render(float *fb, int max_x, int max_y) {
+    ...
+    int pixel_index = j*max_x*3 + i*3;
+    fb[pixel_index + 0] = float(i) / max_x;
+    fb[pixel_index + 1] = float(j) / max_y;
+    fb[pixel_index + 2] = 0.2;
+}</code></pre></p>
+                <p><pre><code>__global__ void render(vec3 *fb, int max_x, int max_y) {
+    ...
+    int pixel_index = j*max_x + i;
+    fb[pixel_index] = vec3( float(i) / max_x, float(j) / max_y, 0.2f);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>int main() {
+    ...
+    size_t fb_size = 3*num_pixels*sizeof(float);
+
+    // asignar "buffer" (espacio en memoria para los pixeles)
+    float *fb;
+    ...
+    for (int j = ny-1; j &gt= 0; j--) {
+        for (int i = 0; i &lt nx; i++) {
+            size_t pixel_index = j*3*nx + i*3;
+            float r = fb[pixel_index + 0];
+            float g = fb[pixel_index + 1];
+            float b = fb[pixel_index + 2];
+            int ir = int(255.99*r);
+            int ig = int(255.99*g);
+            int ib = int(255.99*b);
+            std::cout &lt&lt ir &lt&lt " " &lt&lt ig &lt&lt " " &lt&lt ib &lt&lt "\n";
+        }
+    }
+
+    cudaFree(fb);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <p><pre><code>int main() {
+    ...
+    size_t fb_size = num_pixels*sizeof(vec3);
+
+    // asignar "buffer" (espacio en memoria para los pixeles)
+    vec3 *fb;
+    ...
+    for (int j = ny-1; j &gt= 0; j--) {
+        for (int i = 0; i &lt nx; i++) {
+            size_t pixel_index = j*nx + i;
+            int ir = int(255.99*fb[pixel_index].r());
+            int ig = int(255.99*fb[pixel_index].g());
+            int ib = int(255.99*fb[pixel_index].b());
+            std::cout &lt&lt ir &lt&lt " " &lt&lt ig &lt&lt " " &lt&lt ib &lt&lt "\n";
+        }
+    }
+
+    cudaFree(fb);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 2</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ch02_out.png">
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <div class="mypars">
+                <p>Ahora definimos un <b>rayo</b>.</p><br>
+                <p>Matemáticamente está dado por $\vec{P}(t) = \vec{A} + t\vec{b}$.</p>
+                <p>$\vec{A}$ es el orígen del rayo, $\vec{b}$ es la dirección, y $t$ es un parámetro que define donde estamos en el rayo.</p>
+                </div>
+                <figure>
+                <img src="aplicaciones_figuras/ray.png">
+                <figcaption>Fuente: Ray Tracing In One Weekend</figcaption>
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <p><pre><code>#ifndef RAYH
+#define RAYH
+#include "vec3.h"
+
+class ray
+{
+    public:
+        __device__ ray() {}
+        __device__ ray(const vec3& a, const vec3& b) { A = a; B = b; }
+        __device__ vec3 origin() const       { return A; }
+        __device__ vec3 direction() const    { return B; }
+        __device__ vec3 point_at_parameter(float t) const { return A + t*B; }
+
+        vec3 A;
+        vec3 B;
+};
+
+#endif</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <p>Mandamos los rayos a la escena...</p>
+                <figure>
+                <img src="aplicaciones_figuras/camera_geometry.png">
+                <figcaption>Fuente: Ray Tracing In One Weekend</figcaption>
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <p><pre><code>__global__ void render(vec3 *fb, int max_x, int max_y,
+                       vec3 lower_left_corner, vec3 horizontal, vec3 vertical, vec3 origin) {
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int j = threadIdx.y + blockIdx.y * blockDim.y;
+    if((i &gt= max_x) || (j &gt= max_y)) return;
+    int pixel_index = j*max_x + i;
+    float u = float(i) / float(max_x);
+    float v = float(j) / float(max_y);
+    ray r(origin, lower_left_corner + u*horizontal + v*vertical);
+    fb[pixel_index] = color(r);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <p><pre><code>__device__ vec3 color(const ray& r) {
+    vec3 unit_direction = unit_vector(r.direction());
+    float t = 0.5f*(unit_direction.y() + 1.0f);
+    return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(0.5, 0.7, 1.0);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <p><pre><code>render&lt&lt&ltblocks, threads&gt&gt&gt(fb, nx, ny,
+                            vec3(-2.0, -1.0, -1.0),
+                            vec3(4.0, 0.0, 0.0),
+                            vec3(0.0, 2.0, 0.0),
+                            vec3(0.0, 0.0, 0.0));</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 3</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ch03_out.png">
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <div class="mypars">
+                <p>Hay que poner objetos en la escena. El objeto más fácil de representar matemáticamente es una esfera.</p>
+                <p>La ecuación de una esfera en forma vectorial es $(\vec{P}-\vec{C}) \cdot (\vec{P}-\vec{C}) = r^2$</p>
+                <p>Queremos saber si un rayo choque con la esfera. Si es así, existe un $t$ para cuál la ecuación $(\vec{P}(t)-\vec{C}) \cdot (\vec{P}(t)-\vec{C}) = r^2$ se cumple.</p>
+                </div>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <p>$$(\vec{A} + t\vec{b} - \vec{C}) \cdot (\vec{A} + t\vec{b} - \vec{C}) = r^2$$</p>
+                <p>$$t^2b + 2t\vec{b} \cdot (\vec{A}-\vec{C}) + (\vec{A}-\vec{C})\cdot (\vec{A}-\vec{C}) - r^2 = 0$$</p>
+                <p>El único desconocido es $t$, y es una ecuación cuadrática en $t$...</p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <figure>
+                <img src="aplicaciones_figuras/sphere.png">
+                <figcaption>Fuente: Ray Tracing In One Weekend</figcaption>
+                </figure>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <p><pre><code>__device__ vec3 color(const ray& r) {
+    if (hit_sphere(vec3(0,0,-1), 0.5, r))
+        return vec3(1,0,0);
+    vec3 unit_direction = unit_vector(r.direction());
+    float t = 0.5f*(unit_direction.y() + 1.0f);
+    return (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(0.5, 0.7, 1.0);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <p><pre><code>__device__ bool hit_sphere(const vec3& center, float radius, const ray& r) {
+    vec3 oc = r.origin() - center;
+    float a = dot(r.direction(), r.direction());
+    float b = 2.0f * dot(oc, r.direction());
+    float c = dot(oc, oc) - radius*radius;
+    float discriminant = b*b - 4.0f*a*c;
+    return (discriminant > 0.0f);
+}</code></pre></p>
+                </section>
+
+                <section><h4><i>Ray tracing</i>: Capitulo 4</h4>
+                <figure>
+                <img src="aplicaciones_figuras/ch04_out.png">
+                </figure>
+                </section>
+
+                <section><h3><i>Redes neuronales</i>: cuDNN</h3>
+                <p>http://www.goldsborough.me/cuda/ml/cudnn/c++/2017/10/01/14-37-23-convolutions_with_cudnn/</p>
+                </section>
+
+			</div>
+		</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/js/reveal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.5.0/plugin/math/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.9.0/plugin/highlight/highlight.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        math: {
+        mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.8/MathJax.js',
+        config: 'TeX-AMS_HTML-full',
+        // pass other options into `MathJax.Hub.Config()`
+        TeX: { Macros: { RR: "{\\bf R}" } }
+        },
+        plugins: [ RevealHighlight ]
+      });
+    </script>
+
+	</body>
+</html>
